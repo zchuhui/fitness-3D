@@ -65,7 +65,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,woff2,webp}'],
+        globPatterns: ['**/*.{js,css,html,svg,png,woff2,webp,wasm}'],
         navigateFallback: '/index.html',
         // 3D 模型体积大：运行时缓存（首次看过后离线可看），不做预缓存
         runtimeCaching: [
@@ -85,8 +85,10 @@ export default defineConfig({
     port: 5173,
     open: false,
     watch: {
-      // 忽略浏览器下载中的临时文件，避免文件锁导致 watcher 崩溃
-      ignored: ['**/*.crdownload', '**/*.part', '**/*.tmp'],
+      // 忽略浏览器下载临时文件 + 整个 models 目录：
+      // 模型文件体积大、复制时长时间持锁，fs.watch 撞锁会直接崩进程；
+      // public 下的文件本来就是按请求静态服务，不依赖 HMR
+      ignored: ['**/*.crdownload', '**/*.part', '**/*.tmp', '**/public/models/**'],
     },
   },
 })

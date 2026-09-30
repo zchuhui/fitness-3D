@@ -1,4 +1,5 @@
 import type { Exercise } from '../types'
+import { exerciseFaults } from '../motion/faults'
 
 /**
  * ============================================================
@@ -833,3 +834,10 @@ export const exercises: Exercise[] = [
     camera: 'floor',
   },
 ]
+
+for (const exercise of exercises) {
+  const faults = exerciseFaults[exercise.id]
+  if (!faults) continue
+  exercise.errors = faults.errors
+  if (!exercise.compareMotion) exercise.compareMotion = faults.base
+}

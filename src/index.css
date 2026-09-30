@@ -547,6 +547,18 @@ main {
   border-color: rgba(147, 197, 253, 0.35);
 }
 
+.joint-angle {
+  color: #e8ecf4;
+  background: rgba(10, 12, 17, 0.78);
+  border: 1px solid rgba(184, 241, 53, 0.45);
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
 .viewer-loading {
   display: flex;
   flex-direction: column;

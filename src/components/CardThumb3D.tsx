@@ -56,6 +56,8 @@ export default function CardThumb3D({
             playing
             speed={0.55}
             onClips={setClipNames}
+            muscle={exercise.muscle}
+            accent={GROUP_COLOR[exercise.muscle]}
           />
           <ReadyMarker onReady={onReady} />
         </Suspense>

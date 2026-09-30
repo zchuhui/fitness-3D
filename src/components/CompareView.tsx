@@ -5,7 +5,9 @@ import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
 import { useRef } from 'react'
 import CharacterModel from './CharacterModel'
 import { StagePool, StudioLights } from './studioLook'
+import { isFloorMotion } from '../motion/catalog'
 import { GROUP_COLOR } from '../lib/groupStyle'
+import type { MuscleGroup } from '../types'
 import type { ErrorVariant, Exercise } from '../types'
 
 /** 双画布各自独立的相机参数（低机位给俯卧/卧姿动作） */
@@ -14,22 +16,8 @@ const TARGET: [number, number, number] = [0, 0.95, 0]
 const FLOOR_POS: [number, number, number] = [2.6, 1.4, 3.0]
 const FLOOR_TARGET: [number, number, number] = [0, 0.35, 0]
 
-/** 俯卧/卧姿类对比动作用低视角 */
-const FLOOR_MOTIONS = new Set([
-  'push-up',
-  'plank',
-  'bench-press',
-  'push-up-x-sag',
-  'plank-x-sag',
-  'bench-press-x-flare',
-  'sit-up',
-  'crunch',
-  'lying-leg-raise',
-  'russian-twist',
-])
-
 function isFloor(motionId: string) {
-  return FLOOR_MOTIONS.has(motionId)
+  return isFloorMotion(motionId)
 }
 
 interface StageProps {
@@ -39,10 +27,11 @@ interface StageProps {
   playing: boolean
   speed: number
   accent: string
+  muscle: MuscleGroup
 }
 
 /** 单个对比画布：X Bot + 程序生成动作，独立旋转查看 */
-function Stage({ title, tone, motionId, playing, speed, accent }: StageProps) {
+function Stage({ title, tone, motionId, playing, speed, accent, muscle }: StageProps) {
   const controlsRef = useRef<OrbitControlsImpl>(null)
   const floor = isFloor(motionId)
   const pos = floor ? FLOOR_POS : POS
@@ -67,8 +56,15 @@ function Stage({ title, tone, motionId, playing, speed, accent }: StageProps) {
             </Html>
           }
         >
-          {/* 双画布共用同一个 Xbot.glb，useGLTF 全局缓存只会加载一次 */}
-          <CharacterModel url="/models/Xbot.glb" motionId={motionId} playing={playing} speed={speed} />
+          {/* 文件只加载一次；CharacterModel 会按画布克隆骨架，避免两个画布抢同一个对象 */}
+          <CharacterModel
+            url="/models/Xbot.glb"
+            motionId={motionId}
+            playing={playing}
+            speed={speed}
+            muscle={muscle}
+            accent={accent}
+          />
         </Suspense>
 
         <ContactShadows
@@ -181,6 +177,7 @@ export default function CompareView({
           playing={playing}
           speed={speed}
           accent={GROUP_COLOR[exercise.muscle]}
+          muscle={exercise.muscle}
         />
         <Stage
           title={`❌ ${error.label}`}
@@ -189,6 +186,7 @@ export default function CompareView({
           playing={playing}
           speed={speed}
           accent={GROUP_COLOR[exercise.muscle]}
+          muscle={exercise.muscle}
         />
       </div>
 

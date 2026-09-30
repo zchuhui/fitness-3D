@@ -96,7 +96,14 @@ export default function HeroStage() {
               </Html>
             }
           >
-            <CharacterModel url={HERO_EXERCISE.model.url} playing speed={0.62} onClips={setClipNames} />
+            <CharacterModel
+              url={HERO_EXERCISE.model.url}
+              playing
+              speed={0.62}
+              onClips={setClipNames}
+              muscle={HERO_EXERCISE.muscle}
+              accent="#b8f135"
+            />
           </Suspense>
 
           <StagePool />

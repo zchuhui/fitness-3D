@@ -21,10 +21,21 @@ export interface MotionPose {
   hipsRot?: EulerDeg
 }
 
+/**
+ * 一段过渡的节奏。tempo > 1 离心（慢到位），< 1 向心（快到位），1 为 smoothstep。
+ * hold 是段末停住的比例（0–0.45），停住期间姿势保持在终点。
+ */
+export interface MotionSegment {
+  tempo?: number
+  hold?: number
+}
+
 export interface MotionDef {
   duration: number
   plant: 'feet' | 'toes' | 'hands' | 'none'
   poses: MotionPose[]
+  /** 与 poses 之间的间隔一一对应，长度应为 poses.length - 1 */
+  segments?: MotionSegment[]
 }
 
 const mirror = (e: EulerDeg): EulerDeg => [e[0], -e[1], -e[2]]
@@ -622,4 +633,81 @@ export const MOTIONS: Record<string, MotionDef> = {
       ),
     ],
   },
+
+  /** 杠铃锁在头顶的深蹲，供过头深蹲的对比模式 */
+  'overhead-squat': {
+    duration: 2.6,
+    plant: 'feet',
+    poses: [
+      pose(0, merge(STAND, both({ LeftArm: [60, 100, 40], LeftForeArm: [0, -12, 0] }))),
+      pose(1.05, merge(SQUAT, both({ LeftArm: [60, 100, 40], LeftForeArm: [0, -12, 0] }))),
+      pose(1.4, merge(SQUAT, both({ LeftArm: [60, 100, 40], LeftForeArm: [0, -12, 0] }))),
+      pose(2.6, merge(STAND, both({ LeftArm: [60, 100, 40], LeftForeArm: [0, -12, 0] }))),
+    ],
+  },
+  /** 开合跳：站立 ↔ 分腿举手 */
+  'jumping-jack': {
+    duration: 1.6,
+    plant: 'feet',
+    poses: [
+      pose(0, STAND),
+      pose(
+        0.35,
+        merge(both({ LeftArm: [60, 100, 40], LeftForeArm: [0, -8, 0], LeftUpLeg: [-10, 6, 18], LeftLeg: [8, 0, 0] })),
+        { hop: 0.06 },
+      ),
+      pose(0.8, STAND),
+      pose(
+        1.15,
+        merge(both({ LeftArm: [60, 100, 40], LeftForeArm: [0, -8, 0], LeftUpLeg: [-10, 6, 18], LeftLeg: [8, 0, 0] })),
+        { hop: 0.06 },
+      ),
+      pose(1.6, STAND),
+    ],
+  },
+  /** 击掌俯卧撑的生成版：下落后撑起跳起 */
+  'jump-push-up': {
+    duration: 2.2,
+    plant: 'hands',
+    poses: [
+      pose(0, PUSHUP_TOP, PRONE),
+      pose(0.7, PUSHUP_BOTTOM, PRONE),
+      pose(1.05, PUSHUP_TOP, { ...PRONE, hop: 0.14 }),
+      pose(1.45, PUSHUP_TOP, PRONE),
+      pose(2.2, PUSHUP_TOP, PRONE),
+    ],
+  },
 }
+
+/** 四拍动作（下-停-起）的默认节奏：离心慢、底部停、向心快 */
+const LIFT_RHYTHM: MotionSegment[] = [{ tempo: 1.6 }, { hold: 0.28 }, { tempo: 0.6 }]
+
+for (const id of [
+  'squat',
+  'deadlift',
+  'push-up',
+  'bicep-curl',
+  'overhead-press',
+  'bench-press',
+  'romanian-deadlift',
+  'good-morning',
+  'calf-raise',
+  'lateral-raise',
+  'front-raise',
+  'tricep-extension',
+  'overhead-squat',
+  'bent-over-row',
+  'rear-delt-fly',
+]) {
+  const motion = MOTIONS[id]
+  if (motion && motion.poses.length === 4) motion.segments = LIFT_RHYTHM.map((s) => ({ ...s }))
+}
+
+MOTIONS.lunge.segments = [
+  { tempo: 1.45 },
+  { hold: 0.22 },
+  { tempo: 0.65 },
+  { tempo: 1.45 },
+  { hold: 0.22 },
+  { tempo: 0.65 },
+]

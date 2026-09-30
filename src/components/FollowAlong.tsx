@@ -63,6 +63,8 @@ function Stage({
           speed={speed}
           timeRef={timeRef}
           onDuration={onDuration}
+          muscle={exercise.muscle}
+          accent={GROUP_COLOR[exercise.muscle]}
         />
       </Suspense>
       <ContactShadows position={[0, 0, 0]} opacity={0.55} scale={9} blur={2.2} far={4.5} resolution={512} color="#000000" />

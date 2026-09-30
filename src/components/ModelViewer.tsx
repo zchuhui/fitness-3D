@@ -11,6 +11,7 @@ import {
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
 import CharacterModel from './CharacterModel'
 import { StagePool, StudioLights } from './studioLook'
+import { LOOK_MODES, type LookMode } from '../lib/bodyRegions'
 import { GROUP_COLOR } from '../lib/groupStyle'
 import type { Exercise } from '../types'
 
@@ -54,6 +55,7 @@ export default function ModelViewer({
   const [playing, setPlaying] = useState(true)
   const [speed, setSpeed] = useState(1)
   const [autoRotate, setAutoRotate] = useState(false)
+  const [look, setLook] = useState<LookMode>('coach')
   const [clip, setClip] = useState<string | undefined>(exercise.model.clip)
   const [clipNames, setClipNames] = useState<string[]>([])
   const [duration, setDuration] = useState(0)
@@ -215,6 +217,11 @@ export default function ModelViewer({
             timeRef={timeRef}
             time={playing ? undefined : (seek ?? undefined)}
             motionId={exercise.generated ? exercise.model.clip : undefined}
+            muscle={exercise.muscle}
+            look={look}
+            accent={GROUP_COLOR[exercise.muscle]}
+            duration={duration}
+            keyframes={keyframes.map((k) => k.at)}
           />
         </Suspense>
 
@@ -348,6 +355,25 @@ export default function ModelViewer({
             ))}
           </select>
         )}
+
+        <span className="tb-divider" />
+
+        {LOOK_MODES.map((mode) => (
+          <button
+            key={mode.id}
+            className={`tb-btn ${look === mode.id ? 'active' : ''}`}
+            onClick={() => setLook(mode.id)}
+            title={
+              mode.id === 'coach'
+                ? '目标肌群呼吸高亮'
+                : mode.id === 'anatomy'
+                  ? '半透明身体 + 胶囊骨架'
+                  : '手足髋轨迹与关节角度'
+            }
+          >
+            {mode.label}
+          </button>
+        ))}
 
         <span className="tb-divider" />
 

@@ -112,6 +112,8 @@ function PosterShot({
             url={exercise.model.url}
             clip={exercise.model.clip}
             motionId={exercise.generated ? exercise.model.clip : undefined}
+            muscle={exercise.muscle}
+            accent={GROUP_COLOR[exercise.muscle]}
             playing={false}
             speed={1}
             time={duration > 0 ? posterAtOf(exercise) * duration : undefined}

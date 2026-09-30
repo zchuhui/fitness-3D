@@ -1,5 +1,6 @@
 import {
   AnimationClip,
+  AnimationMixer,
   Bone,
   Euler,
   Object3D,
@@ -8,7 +9,8 @@ import {
   Vector3,
   VectorKeyframeTrack,
 } from 'three'
-import { MOTIONS, type EulerDeg, type MotionDef, type MotionPose } from './motions'
+import { getMotion } from './catalog'
+import type { EulerDeg, MotionDef, MotionPose, MotionSegment } from './motions'
 
 const DEG = Math.PI / 180
 const HIP = 'mixamorigHips'
@@ -41,6 +43,7 @@ const TOE_Y = 0
 const HAND_Y = 0.09
 
 const cache = new WeakMap<Object3D, Map<string, AnimationClip>>()
+const sampleCache = new WeakMap<Object3D, Map<string, FrameSample[]>>()
 
 const eulerQuat = (e: EulerDeg) =>
   new Quaternion().setFromEuler(new Euler(e[0] * DEG, e[1] * DEG, e[2] * DEG, 'XYZ'))
@@ -85,8 +88,23 @@ function smooth(u: number) {
   return t * t * (3 - 2 * t)
 }
 
+/**
+ * tempo > 1 离心（慢到位），tempo < 1 向心（快到位），hold 是段末停住的比例。
+ * 返回值已经是缓动后的 0–1，blendPose 不再二次 smooth。
+ */
+function segmentBlend(u: number, seg?: MotionSegment) {
+  const hold = Math.min(0.45, Math.max(0, seg?.hold ?? 0))
+  const span = 1 - hold
+  const move = span < 1e-4 ? 1 : Math.min(1, Math.max(0, u / span))
+  const s = smooth(move)
+  const tempo = seg?.tempo ?? 1
+  if (tempo > 1.05) return Math.pow(s, Math.min(tempo, 3))
+  if (tempo < 0.95) return 1 - Math.pow(1 - s, 1 / Math.max(0.35, tempo))
+  return s
+}
+
 function blendPose(a: MotionPose, b: MotionPose, u: number): MotionPose {
-  const k = smooth(u)
+  const k = Math.min(1, Math.max(0, u))
   const names = new Set([...Object.keys(a.rot), ...Object.keys(b.rot)])
   const rot: Record<string, EulerDeg> = {}
   for (const name of names) {
@@ -120,7 +138,7 @@ function poseAt(motion: MotionDef, time: number): MotionPose {
   const a = poses[i]
   const b = poses[i + 1]
   const span = b.t - a.t || 1
-  return blendPose(a, b, (time - a.t) / span)
+  return blendPose(a, b, segmentBlend((time - a.t) / span, motion.segments?.[i]))
 }
 
 function worldOf(bone: Bone, target: Vector3) {
@@ -221,8 +239,31 @@ function readSample(rig: Rig, t: number): FrameSample {
   }
 }
 
+const BREATH_AMP: Record<string, number> = {
+  mixamorigSpine: 0.01,
+  mixamorigSpine1: 0.018,
+  mixamorigSpine2: 0.014,
+}
+
+/** 胸腔骨骼叠一层慢正弦，静止动作（平板支撑等）不会僵住 */
+function applyBreath(times: number[], quatValues: Map<string, number[]>) {
+  const axis = new Vector3(1, 0, 0)
+  const breathQ = new Quaternion()
+  const tmpQ = new Quaternion()
+  for (const [name, amp] of Object.entries(BREATH_AMP)) {
+    const arr = quatValues.get(name)
+    if (!arr) continue
+    for (let i = 0; i < times.length; i++) {
+      const w = Math.sin(times[i] * Math.PI * 2 * 0.5) * amp
+      breathQ.setFromAxisAngle(axis, w)
+      tmpQ.fromArray(arr, i * 4).multiply(breathQ)
+      tmpQ.toArray(arr, i * 4)
+    }
+  }
+}
+
 function runMotion(rig: Rig, id: string, times: number[]) {
-  const motion = MOTIONS[id]
+  const motion = getMotion(id)
   if (!motion) throw new Error(`没有这个生成动作：${id}`)
   let handAnchor: Vector3 | null = null
   const samples: FrameSample[] = []
@@ -247,6 +288,8 @@ function runMotion(rig: Rig, id: string, times: number[]) {
     }
   }
 
+  applyBreath(times, quatValues)
+
   const tracks = [
     new VectorKeyframeTrack(`${HIP}.position`, times, hipPos),
     new QuaternionKeyframeTrack(`${HIP}.quaternion`, times, hipQuat),
@@ -267,15 +310,82 @@ export function buildGeneratedClip(root: Object3D, id: string): AnimationClip {
 
   const rig = bindRig(root)
   try {
-    const motion = MOTIONS[id]
+    const motion = getMotion(id)
     if (!motion) throw new Error(`没有这个生成动作：${id}`)
     const n = Math.max(2, Math.round(motion.duration * 30))
     const times = Array.from({ length: n + 1 }, (_, i) => (i / n) * motion.duration)
-    const { clip } = runMotion(rig, id, times)
+    const { clip, samples } = runMotion(rig, id, times)
     byId.set(id, clip)
+    let samplesById = sampleCache.get(root)
+    if (!samplesById) sampleCache.set(root, (samplesById = new Map()))
+    samplesById.set(id, samples)
     return clip
   } finally {
     restore(rig)
+  }
+}
+
+/** 生成动作烘焙时记下的手足髋轨迹。没有则返回 null。 */
+export function motionSamples(root: Object3D, id: string): FrameSample[] | null {
+  return sampleCache.get(root)?.get(id) ?? null
+}
+
+function endpoints(root: Object3D) {
+  const bones = new Map<string, Bone>()
+  root.traverse((o) => {
+    const bone = o as Bone
+    if (bone.isBone) bones.set(bone.name.replace(/^mixamorig:?/, ''), bone)
+  })
+  return bones
+}
+
+/**
+ * 动捕剪辑没有程序采样时，用混合器逐帧读世界坐标。
+ * 读完把骨骼转回进入前的姿势，避免把正在播放的模型钉死。
+ */
+export function sampleClipWorld(root: Object3D, clip: AnimationClip): FrameSample[] {
+  const saved: { bone: Bone; q: Quaternion; p: Vector3 }[] = []
+  root.traverse((o) => {
+    const bone = o as Bone
+    if (!bone.isBone) return
+    saved.push({ bone, q: bone.quaternion.clone(), p: bone.position.clone() })
+  })
+  const bones = endpoints(root)
+  const mixer = new AnimationMixer(root)
+  const action = mixer.clipAction(clip)
+  action.play()
+  const n = Math.max(2, Math.round(Math.max(clip.duration, 0.1) * 30))
+  const p = new Vector3()
+  const grab = (short: string) => {
+    const bone = bones.get(short)
+    if (!bone) return [0, 0, 0]
+    return bone.getWorldPosition(p).toArray().map((v) => +v.toFixed(3))
+  }
+  const samples: FrameSample[] = []
+  try {
+    for (let i = 0; i <= n; i++) {
+      const t = (i / n) * clip.duration
+      mixer.setTime(t)
+      root.updateMatrixWorld(true)
+      samples.push({
+        t: +t.toFixed(3),
+        footL: grab('LeftFoot'),
+        footR: grab('RightFoot'),
+        handL: grab('LeftHand'),
+        handR: grab('RightHand'),
+        head: grab('Head'),
+        hips: grab('Hips'),
+      })
+    }
+    return samples
+  } finally {
+    mixer.stopAllAction()
+    mixer.uncacheClip(clip)
+    for (const s of saved) {
+      s.bone.quaternion.copy(s.q)
+      s.bone.position.copy(s.p)
+    }
+    root.updateMatrixWorld(true)
   }
 }
 
@@ -283,7 +393,8 @@ export function buildGeneratedClip(root: Object3D, id: string): AnimationClip {
 export function debugMotion(root: Object3D, id: string, steps = 8): FrameSample[] {
   const rig = bindRig(root)
   try {
-    const motion = MOTIONS[id]
+    const motion = getMotion(id)
+    if (!motion) throw new Error(`没有这个生成动作：${id}`)
     const times = Array.from({ length: steps + 1 }, (_, i) => (i / steps) * motion.duration)
     return runMotion(rig, id, times).samples
   } finally {

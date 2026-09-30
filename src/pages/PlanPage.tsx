@@ -11,8 +11,8 @@ import { dateKey, logSession } from '../lib/storage'
  * 每个动作的成绩分别写入训练日志（source = plan）。
  */
 export default function PlanPage() {
-  const { planId } = useParams()
-  const plan = PLANS.find((p) => p.id === planId)
+  const { id } = useParams()
+  const plan = PLANS.find((p) => p.id === id)
 
   /** -1 = 概览页；0..n-1 = 跟练中；n = 全部完成 */
   const [step, setStep] = useState(-1)
