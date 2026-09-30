@@ -90,6 +90,26 @@ const HINGE = both({
   LeftForeArm: [0, -8, 0],
 })
 
+/** 壶铃后摆：髋后坐、膝微屈、背中立，双手并拢伸到大腿之间 */
+const KB_HIKE = both({
+  LeftUpLeg: [-56, 8, 10],
+  LeftLeg: [34, 0, 0],
+  LeftFoot: [-10, 0, 0],
+  Spine: [20, 0, 0],
+  Spine1: [6, 0, 0],
+  LeftArm: [8, 0, -96],
+  LeftForeArm: [0, -6, 0],
+})
+
+/** 壶铃顶端：站直、臀腿夹紧，手臂当挂钩摆到胸前，不弯肘、不后仰 */
+const KB_TOP = both({
+  LeftUpLeg: [-2, 0, 2],
+  LeftLeg: [6, 0, 0],
+  Spine: [2, 0, 0],
+  LeftArm: [-72, 0, -96],
+  LeftForeArm: [0, -8, 0],
+})
+
 const DEADLIFT_BOTTOM = both({
   LeftUpLeg: [-76, 4, 6],
   LeftLeg: [52, 0, 0],
@@ -528,12 +548,14 @@ export const MOTIONS: Record<string, MotionDef> = {
   'kettlebell-swing': {
     duration: 2.2,
     plant: 'feet',
+    // 下摆稍慢，髋发力快，顶端短停，再摆回腿间。不要在站姿上把手慢慢放下。
+    segments: [{ hold: 0.2 }, { tempo: 0.38 }, { hold: 0.35 }, { tempo: 0.7 }],
     poses: [
-      pose(0, STAND),
-      pose(0.7, HINGE),
-      pose(1.15, merge(STAND, both({ LeftArm: [-78, -12, -76], LeftForeArm: [0, -12, 0], Spine: [-4, 0, 0] }))),
-      pose(1.4, merge(STAND, both({ LeftArm: [-78, -12, -76], LeftForeArm: [0, -12, 0] }))),
-      pose(2.2, STAND),
+      pose(0, KB_HIKE),
+      pose(0.24, KB_HIKE),
+      pose(0.6, KB_TOP),
+      pose(0.98, KB_TOP),
+      pose(2.2, KB_HIKE),
     ],
   },
   'tricep-extension': {
