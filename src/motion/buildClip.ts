@@ -37,6 +37,8 @@ const BODY_BONES = [
 const REST_HIP: [number, number, number] = [0, 103.991, 2.076]
 const FOOT_Y = 0.08
 const TOE_Y = 0
+/** 支撑类动作手掌离地高度（米） */
+const HAND_Y = 0.09
 
 const cache = new WeakMap<Object3D, Map<string, AnimationClip>>()
 
@@ -175,7 +177,13 @@ function applyPose(rig: Rig, motion: MotionDef, pose: MotionPose, handAnchor: Ve
     worldOf(rig.bones.get('mixamorigLeftHand')!, left)
     worldOf(rig.bones.get('mixamorigRightHand')!, right)
     const mid = left.add(right).multiplyScalar(0.5)
-    if (!handAnchor) handAnchor = mid.clone()
+    if (!handAnchor) {
+      // 支撑类动作（俯卧撑/平板，手在髋下方）：双手钉在地面高度
+      // 引体向上（手在髋上方）：手锚定在第一帧的杠位
+      const hipsW = worldOf(rig.hips, new Vector3())
+      handAnchor =
+        mid.y < hipsW.y ? new Vector3(mid.x, HAND_Y, mid.z) : mid.clone()
+    }
     rig.hips.position.x += (handAnchor.x - mid.x) / s
     rig.hips.position.y += (handAnchor.y - mid.y) / s
     rig.hips.position.z += (handAnchor.z - mid.z) / s

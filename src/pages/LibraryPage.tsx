@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import ExerciseCard from '../components/ExerciseCard'
 import { exercises } from '../data/exercises'
+import { PLANS } from '../data/plans'
 import type { MuscleGroup } from '../types'
 
 const GROUPS: ('全部' | MuscleGroup)[] = [
@@ -17,15 +19,18 @@ const GROUPS: ('全部' | MuscleGroup)[] = [
 export default function LibraryPage() {
   const [group, setGroup] = useState<(typeof GROUPS)[number]>('全部')
   const [q, setQ] = useState('')
+  /** 居家自重专区：只看无器械动作 */
+  const [homeOnly, setHomeOnly] = useState(false)
 
   const list = useMemo(() => {
     const kw = q.trim().toLowerCase()
     return exercises.filter(
       (e) =>
         (group === '全部' || e.muscle === group) &&
+        (!homeOnly || e.equipment.includes('自重')) &&
         (kw === '' || e.name.includes(kw) || e.nameEn.toLowerCase().includes(kw)),
     )
-  }, [group, q])
+  }, [group, q, homeOnly])
 
   return (
     <div className="page">
@@ -58,6 +63,14 @@ export default function LibraryPage() {
               {g}
             </button>
           ))}
+          <span className="chip-divider" />
+          <button
+            className={`chip home ${homeOnly ? 'active' : ''}`}
+            onClick={() => setHomeOnly((h) => !h)}
+            title="只看不需要器械的动作"
+          >
+            🏠 居家自重
+          </button>
         </div>
         <input
           className="search"
@@ -76,6 +89,25 @@ export default function LibraryPage() {
       ) : (
         <div className="empty">没有找到匹配的动作，换个关键词试试 🏃</div>
       )}
+
+      <section className="plans" id="plans">
+        <h2>
+          📋 训练计划 <span className="plans-sub">动作串成套，跟着 3D 节拍整套练</span>
+        </h2>
+        <div className="plans-grid">
+          {PLANS.map((p) => (
+            <Link to={`/plan/${p.id}`} key={p.id} className="plan-card">
+              <div className="plan-tag">{p.tag}</div>
+              <h3>{p.name}</h3>
+              <p>{p.description}</p>
+              <div className="plan-meta">
+                <span>{p.exerciseIds.length} 个动作</span>
+                <span className="plan-go">开始跟练 →</span>
+              </div>
+            </Link>
+          ))}
+        </div>
+      </section>
 
       <section className="howto" id="howto">
         <h2>➕ 如何添加真实标准动作（Mixamo）</h2>

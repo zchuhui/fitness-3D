@@ -1,4 +1,4 @@
-import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
 import {
   ContactShadows,
@@ -28,21 +28,48 @@ const VIEWS: { label: string; pos: [number, number, number] }[] = [
   { label: '俯视', pos: [0, 4.6, 0.9] },
 ]
 
+/** 播放中判定"临近某个关键帧"的归一化窗口（0-1） */
+const KEYFRAME_WINDOW = 0.05
+
 /**
  * 3D 动作查看器：
- * 左键拖拽旋转 / 滚轮缩放 / 右键平移，支持播放暂停、倍速、
- * 一键切换正/侧/背/俯视角、自动旋转。
- * 快捷键：空格 = 播放/暂停，R = 重置视角。
+ * 左键拖拽旋转 / 滚轮缩放 / 右键平移，支持播放暂停、倍速、逐帧拖动时间轴、
+ * 关键帧步进、一键切换正/侧/背/俯视角、自动旋转。
+ * 快捷键：空格 = 播放/暂停，R = 重置视角，←/→ = 上/下一个关键帧。
  */
-export default function ModelViewer({ exercise }: { exercise: Exercise }) {
+export default function ModelViewer({
+  exercise,
+  onActivePointChange,
+  jumpRequest,
+}: {
+  exercise: Exercise
+  /** 播放到某关键帧附近 / 跳转到关键帧时，联动高亮对应要点（传下标，null = 取消） */
+  onActivePointChange?: (point: number | null) => void
+  /** 外部跳帧请求（如点击侧栏要点）；n 每次自增以重复触发同一目标 */
+  jumpRequest?: { at: number; point: number; n: number } | null
+}) {
   const controlsRef = useRef<OrbitControlsImpl>(null)
   const [playing, setPlaying] = useState(true)
   const [speed, setSpeed] = useState(1)
   const [autoRotate, setAutoRotate] = useState(false)
   const [clip, setClip] = useState<string | undefined>(exercise.model.clip)
   const [clipNames, setClipNames] = useState<string[]>([])
+  const [duration, setDuration] = useState(0)
+  /** 暂停态下钉住的时刻（秒）；播放中为 null */
+  const [seek, setSeek] = useState<number | null>(null)
+  /** CharacterModel 每帧写入当前动画时间，进度条据此直接操作 DOM，不走 React 状态 */
+  const timeRef = useRef(0)
+  const playheadRef = useRef<HTMLDivElement>(null)
+  const labelRef = useRef<HTMLSpanElement>(null)
+  const activePointRef = useRef<number | null>(null)
+
   const lookAt = exercise.camera === 'floor' ? FLOOR_TARGET : TARGET
   const defaultPos = exercise.camera === 'floor' ? FLOOR_POS : DEFAULT_POS
+
+  const keyframes = useMemo(
+    () => [...(exercise.keyframes ?? [])].sort((a, b) => a.at - b.at),
+    [exercise.keyframes],
+  )
 
   const setView = useCallback((pos: [number, number, number]) => {
     const c = controlsRef.current
@@ -58,7 +85,51 @@ export default function ModelViewer({ exercise }: { exercise: Exercise }) {
     setClip((cur) => (cur && names.includes(cur) ? cur : names[0]))
   }, [])
 
-  // 快捷键：空格播放/暂停，R 重置视角
+  const onDuration = useCallback((d: number) => setDuration(d), [])
+
+  const notifyPoint = useCallback(
+    (point: number | null) => {
+      if (activePointRef.current === point) return
+      activePointRef.current = point
+      onActivePointChange?.(point)
+    },
+    [onActivePointChange],
+  )
+
+  // 跳到归一化时刻 at（0-1），可选联动要点高亮
+  const doJump = useCallback(
+    (at: number, point?: number) => {
+      const d = duration || 0
+      setPlaying(false)
+      setSeek(at * d)
+      if (point !== undefined) notifyPoint(point)
+    },
+    [duration, notifyPoint],
+  )
+
+  // 上一个 / 下一个关键帧
+  const step = useCallback(
+    (dir: 1 | -1) => {
+      const cur = playing ? timeRef.current : (seek ?? timeRef.current)
+      const pct = duration > 0 ? cur / duration : 0
+      const ats = keyframes.map((k) => k.at)
+      const next =
+        dir === 1
+          ? ats.find((a) => a > pct + 0.02)
+          : [...ats].reverse().find((a) => a < pct - 0.02)
+      if (next === undefined) return
+      const kf = keyframes.find((k) => k.at === next)
+      if (kf) doJump(next, kf.point)
+    },
+    [playing, seek, duration, keyframes, doJump],
+  )
+
+  // 外部跳帧请求（点击侧栏要点等）
+  useEffect(() => {
+    if (jumpRequest) doJump(jumpRequest.at, jumpRequest.point)
+  }, [jumpRequest, doJump])
+
+  // 快捷键：空格播放/暂停，R 重置视角，←/→ 关键帧步进
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null
@@ -68,10 +139,50 @@ export default function ModelViewer({ exercise }: { exercise: Exercise }) {
         setPlaying((p) => !p)
       }
       if (e.key === 'r' || e.key === 'R') setView(defaultPos)
+      if (e.key === 'ArrowLeft') step(-1)
+      if (e.key === 'ArrowRight') step(1)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [setView, defaultPos])
+  }, [setView, defaultPos, step])
+
+  // rAF 循环：直接操作 DOM 更新进度条 / 时间标签 / 关键帧临近检测，
+  // 避免 60fps 的 setState 引发整棵树重渲染
+  useEffect(() => {
+    let raf = 0
+    const loop = () => {
+      const d = duration || 1
+      const cur = playing ? timeRef.current : (seek ?? timeRef.current)
+      const pct = Math.min(1, cur / d)
+      if (playheadRef.current) {
+        playheadRef.current.style.left = `${(pct * 100).toFixed(2)}%`
+      }
+      if (labelRef.current) {
+        labelRef.current.textContent = `${cur.toFixed(1)}s / ${d.toFixed(1)}s`
+      }
+      if (playing && keyframes.length > 0) {
+        let hit: number | null = null
+        for (const k of keyframes) {
+          if (Math.abs(pct - k.at) < KEYFRAME_WINDOW) {
+            hit = k.point
+            break
+          }
+        }
+        notifyPoint(hit)
+      }
+      raf = requestAnimationFrame(loop)
+    }
+    raf = requestAnimationFrame(loop)
+    return () => cancelAnimationFrame(raf)
+  }, [playing, seek, duration, keyframes, notifyPoint])
+
+  // 暂停拖动时间轴：按指针位置换算归一化时刻
+  const scrub = (e: React.PointerEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    const frac = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width))
+    setPlaying(false)
+    setSeek(frac * duration)
+  }
 
   return (
     <div className="viewer-wrap">
@@ -110,6 +221,9 @@ export default function ModelViewer({ exercise }: { exercise: Exercise }) {
             playing={playing}
             speed={speed}
             onClips={onClips}
+            onDuration={onDuration}
+            timeRef={timeRef}
+            time={playing ? undefined : (seek ?? undefined)}
             motionId={exercise.generated ? exercise.model.clip : undefined}
           />
         </Suspense>
@@ -153,13 +267,62 @@ export default function ModelViewer({ exercise }: { exercise: Exercise }) {
         </GizmoHelper>
       </Canvas>
 
-      <div className="viewer-hint">左键旋转 · 滚轮缩放 · 右键平移 · 空格播放/暂停</div>
+      <div className="viewer-hint">左键旋转 · 滚轮缩放 · 右键平移 · 空格播放/暂停 · ←→ 关键帧</div>
       {exercise.placeholder && (
         <div className="viewer-badge">当前为占位演示动画，可替换为 Mixamo 标准动作</div>
       )}
       {exercise.generated && (
         <div className="viewer-badge gen">程序生成的标准动作，可旋转查看关节轨迹</div>
       )}
+
+      {/* 时间轴：拖动逐帧查看，圆点为关键帧，点击跳转并联动右侧要点 */}
+      <div className="timeline">
+        <button
+          className="tb-btn"
+          onClick={() => step(-1)}
+          disabled={keyframes.length === 0}
+          title="上一个关键帧（←）"
+        >
+          ⏮
+        </button>
+        <div
+          className="tl-track"
+          onPointerDown={(e) => {
+            e.currentTarget.setPointerCapture(e.pointerId)
+            scrub(e)
+          }}
+          onPointerMove={(e) => {
+            if (e.buttons > 0) scrub(e)
+          }}
+        >
+          <div className="tl-progress" ref={playheadRef} />
+          {keyframes.map((k, i) => (
+            <button
+              key={i}
+              className="tl-dot"
+              style={{ left: `${k.at * 100}%` }}
+              onClick={(e) => {
+                e.stopPropagation()
+                doJump(k.at, k.point)
+              }}
+              title={exercise.keyPoints[k.point]}
+            >
+              {i + 1}
+            </button>
+          ))}
+        </div>
+        <button
+          className="tb-btn"
+          onClick={() => step(1)}
+          disabled={keyframes.length === 0}
+          title="下一个关键帧（→）"
+        >
+          ⏭
+        </button>
+        <span className="tl-label" ref={labelRef}>
+          0.0s / 0.0s
+        </span>
+      </div>
 
       <div className="viewer-toolbar">
         <button className="tb-btn primary" onClick={() => setPlaying((p) => !p)}>

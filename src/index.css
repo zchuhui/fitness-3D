@@ -87,6 +87,31 @@ main {
   border-radius: 999px;
 }
 
+.main-nav {
+  display: flex;
+  gap: 6px;
+}
+
+.main-nav a {
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 14px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  transition: all 0.15s;
+}
+
+.main-nav a:hover {
+  color: var(--accent);
+  background: rgba(184, 241, 53, 0.08);
+}
+
+@media (max-width: 700px) {
+  .header-badge {
+    display: none;
+  }
+}
+
 /* ---------- 首页 Hero ---------- */
 .hero {
   padding: 56px 0 32px;
@@ -614,6 +639,78 @@ main {
   background: rgba(255, 255, 255, 0.1);
 }
 
+/* ---------- 时间轴（逐帧拖动 + 关键帧步进） ---------- */
+.timeline {
+  position: absolute;
+  left: 50%;
+  bottom: 66px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(640px, calc(100% - 32px));
+  background: rgba(13, 16, 23, 0.78);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+
+.tl-track {
+  position: relative;
+  flex: 1;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.tl-progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 3px;
+  margin-left: -1.5px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 8px rgba(184, 241, 53, 0.6);
+  pointer-events: none;
+}
+
+.tl-dot {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid rgba(184, 241, 53, 0.5);
+  background: #171b26;
+  color: var(--accent);
+  font-size: 10px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.tl-dot:hover {
+  background: var(--accent-dim);
+}
+
+.tl-label {
+  color: var(--muted);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  min-width: 86px;
+  text-align: right;
+}
+
 /* ---------- 信息面板 ---------- */
 .info {
   display: flex;
@@ -664,6 +761,676 @@ main {
   display: flex;
   flex-direction: column;
   gap: 9px;
+}
+
+/* ---------- 要点联动（点击跳关键帧 / 播放临近自动高亮） ---------- */
+.panel-tip {
+  margin: -4px 0 12px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.point {
+  padding: 6px 10px;
+  margin-left: -10px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  transition: all 0.2s;
+}
+
+.point.jumpable {
+  cursor: pointer;
+}
+
+.point.jumpable:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.point.active {
+  background: var(--accent-dim);
+  border-color: rgba(184, 241, 53, 0.4);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* ---------- 错误对比模式 ---------- */
+.compare-btn {
+  cursor: pointer;
+  border: 1px solid rgba(248, 113, 113, 0.4);
+  background: rgba(248, 113, 113, 0.08);
+  color: #fca5a5;
+}
+
+.compare-btn:hover {
+  background: rgba(248, 113, 113, 0.18);
+}
+
+.panel ul {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.panel ul .point {
+  list-style: disc;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.compare-flag {
+  flex: none;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(248, 113, 113, 0.4);
+  background: rgba(248, 113, 113, 0.12);
+  color: #fca5a5;
+}
+
+.compare-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.cv-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.cv-title {
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.cv-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.cv-errors {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.cv-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.cv-stage {
+  position: relative;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: #0d1017;
+  height: 480px;
+}
+
+.cv-label {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 2;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: rgba(10, 12, 17, 0.7);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.cv-label.good {
+  color: var(--accent);
+  border-color: rgba(184, 241, 53, 0.35);
+}
+
+.cv-label.bad {
+  color: #fca5a5;
+  border-color: rgba(248, 113, 113, 0.35);
+}
+
+/* ---------- 跟练模式 ---------- */
+.fa-wrap {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 18px;
+  align-items: start;
+}
+
+.fa-stage {
+  position: relative;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: #0d1017;
+  height: 560px;
+}
+
+.fa-stage-badge {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  background: rgba(10, 12, 17, 0.7);
+  backdrop-filter: blur(6px);
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(184, 241, 53, 0.3);
+}
+
+.fa-panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.fa-panel h2 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.fa-empty {
+  color: var(--muted);
+  margin: 0;
+}
+
+.fa-overview {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+
+.fa-stat {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: center;
+}
+
+.fa-stat span {
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.fa-stat b {
+  font-size: 14px;
+}
+
+.fa-points {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fa-start {
+  text-align: center;
+  font-size: 15px;
+  padding: 12px;
+}
+
+.fa-phase-label {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.fa-phase-label b {
+  color: var(--accent);
+  font-size: 18px;
+}
+
+.fa-phase-label.rest,
+.fa-phase-label.done {
+  color: var(--accent);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.fa-big {
+  font-size: 64px;
+  font-weight: 700;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  color: var(--text);
+}
+
+.fa-big .fa-total {
+  font-size: 24px;
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.fa-rep-dots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+}
+
+.fa-rep-dots span {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.fa-rep-dots span.done {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.fa-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+.fa-speed {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.fa-sound {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.fa-next {
+  text-align: center;
+  color: var(--muted);
+  margin: 0;
+}
+
+.fa-done-text {
+  color: var(--muted);
+  font-size: 14px;
+  margin: 0;
+  line-height: 1.6;
+}
+
+.save-toast {
+  background: var(--accent-dim);
+  border: 1px solid rgba(184, 241, 53, 0.4);
+  color: var(--accent);
+  border-radius: 10px;
+  padding: 10px 16px;
+  font-size: 13.5px;
+  margin-bottom: 14px;
+}
+
+/* ---------- 训练历史 ---------- */
+.hero.small {
+  padding: 36px 0 18px;
+}
+
+.hero.small h1 {
+  font-size: 28px;
+}
+
+.hero.small p {
+  margin: 10px 0 0;
+}
+
+.history-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: 14px;
+  align-items: start;
+}
+
+.hist-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.hm-wrap {
+  display: flex;
+  gap: 6px;
+}
+
+.hm-weekdays {
+  display: grid;
+  grid-template-rows: repeat(7, 1fr);
+  gap: 3px;
+  color: var(--muted);
+  font-size: 9px;
+  align-items: center;
+}
+
+.heatmap {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(7, 1fr);
+  grid-auto-columns: 1fr;
+  gap: 3px;
+  flex: 1;
+}
+
+.hm {
+  aspect-ratio: 1;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.hm-1 {
+  background: rgba(184, 241, 53, 0.3);
+}
+
+.hm-2 {
+  background: rgba(184, 241, 53, 0.55);
+}
+
+.hm-3 {
+  background: var(--accent);
+}
+
+.hm-legend {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  justify-content: flex-end;
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.hm-legend .hm {
+  width: 11px;
+  height: 11px;
+  aspect-ratio: auto;
+}
+
+.hm-empty {
+  color: var(--muted);
+  font-size: 13.5px;
+  line-height: 1.7;
+  margin: 10px 0 0;
+}
+
+.hm-link {
+  color: var(--accent);
+  margin: 0 2px;
+}
+
+.recent-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.recent-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+.recent-name {
+  color: var(--text);
+  font-size: 13.5px;
+  text-decoration: none;
+}
+
+.recent-name:hover {
+  color: var(--accent);
+}
+
+.recent-meta {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.hm-clear {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.tb-btn.danger {
+  color: #fca5a5;
+  border-color: rgba(248, 113, 113, 0.4);
+}
+
+.tb-btn.danger:hover {
+  background: rgba(248, 113, 113, 0.12);
+}
+
+/* ---------- 跟练入口 / 计划区块 ---------- */
+.train-btn {
+  color: var(--accent);
+  border: 1px solid rgba(184, 241, 53, 0.4);
+  background: rgba(184, 241, 53, 0.1);
+  text-decoration: none;
+}
+
+.train-btn:hover {
+  background: var(--accent-dim);
+}
+
+.chip-divider {
+  width: 1px;
+  height: 22px;
+  background: rgba(255, 255, 255, 0.12);
+  display: inline-block;
+  margin: 0 4px;
+}
+
+.chip.home.active {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border-color: rgba(184, 241, 53, 0.5);
+}
+
+.plans {
+  margin-top: 42px;
+}
+
+.plans h2 {
+  font-size: 22px;
+  margin: 0 0 6px;
+}
+
+.plans-sub {
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 400;
+  margin-left: 8px;
+}
+
+.plans-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.plan-card {
+  position: relative;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 16px 14px;
+  text-decoration: none;
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: all 0.18s;
+}
+
+.plan-card:hover {
+  border-color: rgba(184, 241, 53, 0.45);
+  transform: translateY(-2px);
+}
+
+.plan-tag {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  font-size: 11px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--muted);
+}
+
+.plan-card h3 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.plan-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+  flex: 1;
+}
+
+.plan-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.plan-go {
+  color: var(--accent);
+}
+
+/* 计划跟练进度条 */
+.plan-progress {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.plan-progress-label {
+  font-size: 13.5px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.plan-progress-track {
+  display: flex;
+  gap: 6px;
+  flex: 1;
+}
+
+.plan-progress-track span {
+  flex: 1;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.plan-progress-track span.done {
+  background: rgba(184, 241, 53, 0.5);
+}
+
+.plan-progress-track span.now {
+  background: var(--accent);
+}
+
+.plan-overview .plan-steps {
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.plan-steps li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 12px;
+}
+
+.plan-idx {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(184, 241, 53, 0.12);
+  border: 1px solid rgba(184, 241, 53, 0.35);
+  color: var(--accent);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.plan-name {
+  color: var(--text);
+  text-decoration: none;
+  font-size: 14px;
+  flex: 1;
+}
+
+.plan-name:hover {
+  color: var(--accent);
+}
+
+.plan-step-meta {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 .panel ol li {
@@ -763,6 +1530,35 @@ main {
   .hero h1 {
     font-size: 32px;
   }
+
+  /* 工具栏单行横向滚动，避免换行后与时间轴重叠 */
+  .viewer-toolbar {
+    max-width: calc(100% - 24px);
+    overflow-x: auto;
+    flex-wrap: nowrap;
+  }
+
+  /* 对比模式：双画布上下堆叠 */
+  .cv-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .cv-stage {
+    height: 340px;
+  }
+
+  /* 跟练：舞台与面板上下堆叠 */
+  .fa-wrap {
+    grid-template-columns: 1fr;
+  }
+
+  .fa-stage {
+    height: 420px;
+  }
+
+  .history-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 560px) {
@@ -780,6 +1576,19 @@ main {
 
   .hero-stats {
     gap: 16px;
+  }
+
+  .timeline {
+    gap: 6px;
+    padding: 6px 8px;
+  }
+
+  .tl-label {
+    display: none;
+  }
+
+  .cv-stage {
+    height: 260px;
   }
 
   .viewer-hint {
