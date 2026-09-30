@@ -1,4 +1,5 @@
 import type { MuscleGroup } from '../types'
+import { publicUrl } from './publicUrl'
 
 /**
  * 肌群品牌色（聚光灯舞台的唯一色彩真相）：
@@ -28,5 +29,5 @@ export const GROUP_FALLBACK: Record<MuscleGroup, { icon: string; gradient: strin
 }
 
 /** 卡片海报图路径约定：/poster-studio 渲染写入 public/posters/ */
-export const posterUrl = (id: string) => `/posters/${id}.webp`
-export const posterUrlPng = (id: string) => `/posters/${id}.png`
+export const posterUrl = (id: string) => publicUrl(`/posters/${id}.webp`)
+export const posterUrlPng = (id: string) => publicUrl(`/posters/${id}.png`)

@@ -9,6 +9,7 @@ import { MUSCLE_REGIONS, type LookMode } from '../lib/bodyRegions'
 import { buildGeneratedClip, motionSamples, sampleClipWorld } from '../motion/buildClip'
 import type { MuscleGroup } from '../types'
 import MotionTrails from './MotionTrails'
+import { publicUrl } from '../lib/publicUrl'
 import { applyLook, dressMannequin } from './studioLook'
 import type { RegionKit } from './studioLook'
 
@@ -48,8 +49,10 @@ export interface CharacterModelProps {
  * 自动归一化尺寸（Mixamo 导出的模型比例不一，统一缩放到真人身高并双脚落地）。
  */
 export default function CharacterModel(props: CharacterModelProps) {
-  const isFbx = props.url.toLowerCase().endsWith('.fbx')
-  return isFbx ? <FbxRig {...props} /> : <GlbRig {...props} />
+  const url = publicUrl(props.url)
+  const isFbx = url.toLowerCase().endsWith('.fbx')
+  const next = { ...props, url }
+  return isFbx ? <FbxRig {...next} /> : <GlbRig {...next} />
 }
 
 function GlbRig({ url, motionId, ...rest }: CharacterModelProps) {

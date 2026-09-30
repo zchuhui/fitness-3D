@@ -11,8 +11,8 @@ import { exercises } from '../data/exercises'
 import { PLANS } from '../data/plans'
 import { lenis } from '../lib/smoothScroll'
 
-/** Hero 主打动作：真实动捕的杠铃深蹲 */
-const HERO_EXERCISE = exercises.find((e) => e.id === 'squat')!
+/** Hero 主打动作：真实动捕的俯卧撑 */
+const HERO_EXERCISE = exercises.find((e) => e.id === 'push-up')!
 
 /** 编排统一曲线：spring 感 cubic-bezier */
 const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1]
@@ -33,7 +33,7 @@ function TurnRig({ mx, children }: { mx: MotionValue<number>; children: ReactNod
  * 首页 Hero：左文案 + 右 3D 主舞台 · 开场演出版。
  * - 入场编排：eyebrow → 标题逐行掩码滑出 → lede/CTA/stats stagger → 舞台浮现 → 胶囊弹入
  * - 鼠标视差：舞台整体位移 + halo 反向漂移 + 人物转身跟随（仅精细指针）
- * - 舞台复用 CharacterModel 渲染动捕深蹲：三灯布光 + 接触阴影 + 细网格地面，
+ * - 舞台复用 CharacterModel 渲染动捕俯卧撑：三灯布光 + 接触阴影 + 细网格地面，
  *   缓慢自动旋转、可拖拽（禁缩放平移保持构图）；离屏自动暂停渲染省电。
  */
 export default function HeroStage() {
@@ -101,7 +101,7 @@ export default function HeroStage() {
   return (
     <section className="home-hero" ref={heroRef} onMouseMove={onHeroMove}>
       <span className="hero-bgword" aria-hidden="true">
-        SQUAT
+        PUSH
       </span>
       <MouseGlow containerRef={heroRef} />
 
@@ -174,7 +174,7 @@ export default function HeroStage() {
                 shadows
                 dpr={[1, 1.75]}
                 frameloop={active ? 'always' : 'never'}
-                camera={{ position: [2.8, 1.55, 3.4], fov: 38, near: 0.1, far: 60 }}
+                camera={{ position: [1.7, 1.05, 2.15], fov: 36, near: 0.1, far: 60 }}
               >
                 <StudioLights />
 
@@ -224,7 +224,7 @@ export default function HeroStage() {
 
                 <OrbitControls
                   makeDefault
-                  target={[0, 0.95, 0]}
+                  target={[0, 0.28, 0]}
                   enableZoom={false}
                   enablePan={false}
                   autoRotate
@@ -252,7 +252,7 @@ export default function HeroStage() {
                 <span className="stage-chip">{c.text}</span>
               </m.span>
             ))}
-            <span className="stage-caption">Back Squat · Motion Capture</span>
+            <span className="stage-caption">Push-Up · Motion Capture</span>
           </div>
         </m.div>
       </m.div>

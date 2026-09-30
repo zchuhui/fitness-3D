@@ -8,7 +8,7 @@ import { initSmoothScroll } from './lib/smoothScroll'
 import './index.css'
 
 /** Draco 解码器放在本地，离线 / PWA 也能打开压缩后的运动员骨架 */
-useGLTF.setDecoderPath('/draco/')
+useGLTF.setDecoderPath(`${import.meta.env.BASE_URL}draco/`)
 
 /** lenis 平滑滚动（reduced-motion 用户自动跳过） */
 initSmoothScroll()
@@ -18,7 +18,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     {/* LazyMotion 只打包 domAnimation 特性集；MotionConfig 让 reduced-motion 用户跳过位移动画 */}
     <LazyMotion features={domAnimation} strict>
       <MotionConfig reducedMotion="user">
-        <BrowserRouter>
+        <BrowserRouter basename={import.meta.env.BASE_URL}>
           <App />
         </BrowserRouter>
       </MotionConfig>

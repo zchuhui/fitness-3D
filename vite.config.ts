@@ -7,6 +7,22 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 const projectRoot = path.dirname(fileURLToPath(import.meta.url))
 
+/** GitHub Pages 没有 SPA 回退：把首页复制成 404.html，刷新 /exercise 等子路由才能打开。 */
+function githubPagesSpaFallback(): Plugin {
+  return {
+    name: 'github-pages-spa-fallback',
+    apply: 'build',
+    async closeBundle() {
+      const dist = path.resolve(projectRoot, 'dist')
+      try {
+        await fs.copyFile(path.join(dist, 'index.html'), path.join(dist, '404.html'))
+      } catch {
+        // 构建未写出 index.html 时不打断流程
+      }
+    },
+  }
+}
+
 /**
  * 开发专用中间件：/poster-studio 页面把离屏渲染的卡片海报
  * POST 到 /__save-poster，写入 public/posters/ 成为静态资产。
@@ -43,10 +59,13 @@ function posterSaver(): Plugin {
   }
 }
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
+  // 仓库 Pages 地址是 https://<user>.github.io/fitness-3D/；本地 dev 仍用 /
+  base: command === 'build' ? '/fitness-3D/' : '/',
   plugins: [
     react(),
     posterSaver(),
+    githubPagesSpaFallback(),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['icons/*.png'],
@@ -57,16 +76,14 @@ export default defineConfig({
         theme_color: '#0d1017',
         background_color: '#0d1017',
         display: 'standalone',
-        start_url: '/',
         icons: [
-          { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
-          { src: '/icons/maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+          { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+          { src: 'icons/maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2,webp,wasm}'],
-        navigateFallback: '/index.html',
         // 3D 模型体积大：运行时缓存（首次看过后离线可看），不做预缓存
         runtimeCaching: [
           {
@@ -91,4 +108,4 @@ export default defineConfig({
       ignored: ['**/*.crdownload', '**/*.part', '**/*.tmp', '**/public/models/**'],
     },
   },
-})
+}))

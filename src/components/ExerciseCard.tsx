@@ -4,6 +4,7 @@ import { useGLTF } from '@react-three/drei'
 import { DIFFICULTY_CLASS } from '../types'
 import type { Exercise } from '../types'
 import { GROUP_COLOR, GROUP_FALLBACK, posterUrl, posterUrlPng } from '../lib/groupStyle'
+import { publicUrl } from '../lib/publicUrl'
 import { useTilt } from '../lib/useTilt'
 import CardThumb3D from './CardThumb3D'
 
@@ -37,7 +38,7 @@ export default function ExerciseCard({ exercise: e }: { exercise: Exercise }) {
 
   const onMouseEnter = (_: MouseEvent) => {
     // 悬停预加载模型：点进详情页 / 悬停 3D 都秒开
-    if (e.model.url.toLowerCase().endsWith('.glb')) useGLTF.preload(e.model.url)
+    if (e.model.url.toLowerCase().endsWith('.glb')) useGLTF.preload(publicUrl(e.model.url))
     if (!canHover3D) return
     // 通知其它卡片卸载自己的实时画布（保证同屏单实例）
     window.dispatchEvent(new CustomEvent(CARD_3D_EVENT, { detail: e.id }))
