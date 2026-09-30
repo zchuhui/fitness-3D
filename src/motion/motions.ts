@@ -210,6 +210,146 @@ const HIGH_KNEE_RIGHT: Record<string, EulerDeg> = {
   LeftForeArm: [0, -18, 0],
 }
 
+/** 俯卧位（面朝下），与仰卧 FLOOR 相对的髋部旋转 */
+const PRONE: Pick<MotionPose, 'hips' | 'hipsRot'> = {
+  hips: [0, 8, -2],
+  hipsRot: [90, 0, 0],
+}
+
+/** 俯卧双腿并拢伸直 */
+const PRONE_LEGS = both({ LeftUpLeg: [0, 2, 2], LeftLeg: [4, 0, 0], LeftFoot: [10, 0, 0] })
+
+// ------------------------------------------------------------
+// 新增徒手动作的姿势
+// ------------------------------------------------------------
+
+/** 臀桥底部：仰卧屈膝，手臂贴地 */
+const GLUTE_BRIDGE_DOWN = merge(
+  SUPINE_LEGS,
+  both({
+    LeftArm: [12, 6, -42],
+    LeftForeArm: [0, -10, 0],
+    Spine: [4, 0, 0],
+  }),
+)
+/** 臀桥顶端：肩到膝一条直线，髋部充分伸展 */
+const GLUTE_BRIDGE_TOP = merge(
+  SUPINE_LEGS,
+  both({
+    LeftUpLeg: [-52, 10, 6],
+    LeftLeg: [58, 0, 0],
+    LeftFoot: [-4, 0, 0],
+    Spine: [-12, 0, 0],
+    Spine1: [-6, 0, 0],
+    LeftArm: [12, 6, -42],
+    LeftForeArm: [0, -10, 0],
+  }),
+)
+
+/** 侧平板：右侧卧，右前臂撑地，身体一条直线 */
+const SIDE_PLANK_ROT: Record<string, EulerDeg> = {
+  RightArm: [8, -52, 42],
+  RightForeArm: [0, -78, 0],
+  LeftArm: [-52, -12, -18],
+  LeftForeArm: [0, -8, 0],
+  LeftUpLeg: [0, 4, 4],
+  RightUpLeg: [0, 4, 4],
+  LeftLeg: [4, 0, 0],
+  RightLeg: [4, 0, 0],
+  LeftFoot: [8, 0, 0],
+  RightFoot: [8, 0, 0],
+  Spine: [2, 0, 0],
+  Spine1: [2, 0, 0],
+}
+const SIDE_PLANK: Pick<MotionPose, 'hips' | 'hipsRot'> = {
+  hips: [0, 24, 4],
+  hipsRot: [0, 0, 78],
+}
+
+/** 登山跑：直臂支撑 + 交替收膝 */
+const MOUNTAIN_CLIMBER_LEFT: Record<string, EulerDeg> = merge(
+  PRONE_LEGS,
+  both({ LeftArm: [0, -84, -6], LeftForeArm: [0, 0, -6], Spine: [2, 0, 0] }),
+  {
+    LeftUpLeg: [-92, 4, 4],
+    LeftLeg: [108, 0, 0],
+    LeftFoot: [-12, 0, 0],
+    RightUpLeg: [4, -2, -3],
+    RightLeg: [8, 0, 0],
+    RightFoot: [14, 0, 0],
+  },
+)
+const MOUNTAIN_CLIMBER_RIGHT: Record<string, EulerDeg> = merge(
+  PRONE_LEGS,
+  both({ LeftArm: [0, -84, -6], LeftForeArm: [0, 0, -6], Spine: [2, 0, 0] }),
+  {
+    RightUpLeg: [-92, -4, -4],
+    RightLeg: [108, 0, 0],
+    RightFoot: [-12, 0, 0],
+    LeftUpLeg: [4, 2, 3],
+    LeftLeg: [8, 0, 0],
+    LeftFoot: [14, 0, 0],
+  },
+)
+
+/** 钻石俯卧撑：手距窄，肘部贴近身体 */
+const DIAMOND_TOP = merge(PRONE_LEGS, both({ LeftArm: [0, -58, -10], LeftForeArm: [0, 0, -8], Spine: [2, 0, 0] }))
+const DIAMOND_BOTTOM = merge(PRONE_LEGS, both({ LeftArm: [0, -58, -10], LeftForeArm: [0, 0, -96], Spine: [2, 0, 0] }))
+
+/** 超人式：俯卧同时抬胸和双腿 */
+const SUPERMAN_DOWN = merge(
+  PRONE_LEGS,
+  both({
+    LeftArm: [62, 0, -12],
+    LeftForeArm: [0, -6, 0],
+    Spine: [2, 0, 0],
+    Head: [4, 0, 0],
+  }),
+)
+const SUPERMAN_UP = merge(
+  PRONE_LEGS,
+  both({
+    LeftUpLeg: [-16, 2, 2],
+    LeftLeg: [6, 0, 0],
+    LeftFoot: [16, 0, 0],
+    LeftArm: [68, 0, -10],
+    LeftForeArm: [0, -4, 0],
+    Spine: [-20, 0, 0],
+    Spine1: [-10, 0, 0],
+    Head: [-10, 0, 0],
+  }),
+)
+
+/** 侧弓步：重心移到左侧，右腿伸直 */
+const SIDE_LUNGE_LEFT: Record<string, EulerDeg> = {
+  LeftUpLeg: [-82, 8, 16],
+  LeftLeg: [104, 0, 0],
+  LeftFoot: [-18, 0, 0],
+  RightUpLeg: [4, -4, -22],
+  RightLeg: [6, 0, 0],
+  RightFoot: [12, 0, 0],
+  Spine: [16, 0, 0],
+  Spine1: [6, 0, 0],
+  LeftArm: [22, 10, -62],
+  RightArm: [22, -10, 62],
+  LeftForeArm: [0, -22, 0],
+  RightForeArm: [0, 22, 0],
+}
+const SIDE_LUNGE_RIGHT: Record<string, EulerDeg> = {
+  RightUpLeg: [-82, -8, -16],
+  RightLeg: [104, 0, 0],
+  RightFoot: [-18, 0, 0],
+  LeftUpLeg: [4, 4, 22],
+  LeftLeg: [6, 0, 0],
+  LeftFoot: [12, 0, 0],
+  Spine: [16, 0, 0],
+  Spine1: [6, 0, 0],
+  RightArm: [22, -10, 62],
+  LeftArm: [22, 10, -62],
+  RightForeArm: [0, 22, 0],
+  LeftForeArm: [0, -22, 0],
+}
+
 // ------------------------------------------------------------
 // 对比模式：标准动作（FBX 主演示的生成版，供双画布对比的"标准"侧）
 // ------------------------------------------------------------
@@ -224,15 +364,6 @@ const SQUAT_VALGUS = both({
   LeftArm: [52, 22, -52],
   LeftForeArm: [0, -52, 0],
 })
-
-/** 俯卧位（面朝下），与仰卧 FLOOR 相对的髋部旋转 */
-const PRONE: Pick<MotionPose, 'hips' | 'hipsRot'> = {
-  hips: [0, 8, -2],
-  hipsRot: [90, 0, 0],
-}
-
-/** 俯卧双腿并拢伸直 */
-const PRONE_LEGS = both({ LeftUpLeg: [0, 2, 2], LeftLeg: [4, 0, 0], LeftFoot: [10, 0, 0] })
 
 /** 直臂俯卧撑顶/平板支撑：手臂垂直撑地（plant=hands 由手锚定身体高度） */
 const PUSHUP_TOP = merge(PRONE_LEGS, both({ LeftArm: [0, -84, -6], LeftForeArm: [0, 0, -6], Spine: [2, 0, 0] }))
@@ -699,6 +830,65 @@ export const MOTIONS: Record<string, MotionDef> = {
       pose(2.2, PUSHUP_TOP, PRONE),
     ],
   },
+
+  // ---------- 新增徒手动作 ----------
+  'glute-bridge': {
+    duration: 2.4,
+    plant: 'none',
+    poses: [
+      pose(0, GLUTE_BRIDGE_DOWN, FLOOR),
+      pose(0.9, GLUTE_BRIDGE_TOP, FLOOR),
+      pose(1.3, GLUTE_BRIDGE_TOP, FLOOR),
+      pose(2.4, GLUTE_BRIDGE_DOWN, FLOOR),
+    ],
+  },
+  'side-plank': {
+    duration: 1.6,
+    plant: 'none',
+    poses: [pose(0, SIDE_PLANK_ROT, SIDE_PLANK), pose(1.6, SIDE_PLANK_ROT, SIDE_PLANK)],
+  },
+  'mountain-climber': {
+    duration: 1.2,
+    plant: 'hands',
+    poses: [
+      pose(0, MOUNTAIN_CLIMBER_LEFT, PRONE),
+      pose(0.6, MOUNTAIN_CLIMBER_RIGHT, PRONE),
+      pose(1.2, MOUNTAIN_CLIMBER_LEFT, PRONE),
+    ],
+  },
+  'diamond-push-up': {
+    duration: 2.2,
+    plant: 'hands',
+    poses: [
+      pose(0, DIAMOND_TOP, PRONE),
+      pose(0.85, DIAMOND_BOTTOM, PRONE),
+      pose(1.2, DIAMOND_BOTTOM, PRONE),
+      pose(2.2, DIAMOND_TOP, PRONE),
+    ],
+  },
+  superman: {
+    duration: 2.4,
+    plant: 'none',
+    poses: [
+      pose(0, SUPERMAN_DOWN, PRONE),
+      pose(0.9, SUPERMAN_UP, PRONE),
+      pose(1.3, SUPERMAN_UP, PRONE),
+      pose(2.4, SUPERMAN_DOWN, PRONE),
+    ],
+  },
+  'side-lunge': {
+    duration: 3.2,
+    plant: 'feet',
+    poses: [
+      pose(0, STAND),
+      pose(0.7, SIDE_LUNGE_LEFT),
+      pose(1.05, SIDE_LUNGE_LEFT),
+      pose(1.6, STAND),
+      pose(2.3, SIDE_LUNGE_RIGHT),
+      pose(2.65, SIDE_LUNGE_RIGHT),
+      pose(3.2, STAND),
+    ],
+  },
 }
 
 /** 四拍动作（下-停-起）的默认节奏：离心慢、底部停、向心快 */
@@ -720,12 +910,24 @@ for (const id of [
   'overhead-squat',
   'bent-over-row',
   'rear-delt-fly',
+  'glute-bridge',
+  'diamond-push-up',
+  'superman',
 ]) {
   const motion = MOTIONS[id]
   if (motion && motion.poses.length === 4) motion.segments = LIFT_RHYTHM.map((s) => ({ ...s }))
 }
 
 MOTIONS.lunge.segments = [
+  { tempo: 1.45 },
+  { hold: 0.22 },
+  { tempo: 0.65 },
+  { tempo: 1.45 },
+  { hold: 0.22 },
+  { tempo: 0.65 },
+]
+
+MOTIONS['side-lunge'].segments = [
   { tempo: 1.45 },
   { hold: 0.22 },
   { tempo: 0.65 },

@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { GLTFLoader } from 'three-stdlib'
+import { DRACOLoader } from 'three-stdlib'
 import { debugMotion } from '../src/motion/buildClip'
 import type { FrameSample } from '../src/motion/buildClip'
 
@@ -7,6 +8,9 @@ const buf = readFileSync(new URL('../public/models/Xbot.glb', import.meta.url))
 const ab = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer
 
 const loader = new GLTFLoader()
+const draco = new DRACOLoader()
+draco.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/')
+loader.setDRACOLoader(draco)
 const gltf = await new Promise((res, rej) => loader.parse(ab, '', res as never, rej as never))
 const scene = (gltf as { scene: import('three').Object3D }).scene
 
@@ -18,9 +22,9 @@ function drift(samples: FrameSample[], pick: (f: FrameSample) => number[]) {
 }
 
 export function run() {
-  const FEET_MOTIONS = ['squat', 'squat-x-valgus', 'deadlift-x-arch', 'deadlift-x-hyper', 'bicep-curl-x-swing', 'good-morning-x-arch']
-  const HANDS_MOTIONS = ['push-up', 'push-up-x-sag', 'plank', 'plank-x-sag', 'pull-up']
-  const FLOOR_NONE_MOTIONS = ['bench-press-x-flare', 'sit-up', 'bench-press']
+  const FEET_MOTIONS = ['squat', 'squat-x-valgus', 'deadlift-x-arch', 'deadlift-x-hyper', 'bicep-curl-x-swing', 'good-morning-x-arch', 'side-lunge']
+  const HANDS_MOTIONS = ['push-up', 'push-up-x-sag', 'plank', 'plank-x-sag', 'pull-up', 'mountain-climber', 'diamond-push-up']
+  const FLOOR_NONE_MOTIONS = ['bench-press-x-flare', 'sit-up', 'bench-press', 'glute-bridge', 'superman', 'side-plank']
   let bad = 0
 
   // 双脚钉地：双脚 y 应始终贴近地面
