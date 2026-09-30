@@ -9,6 +9,7 @@ import {
   OrbitControls,
 } from '@react-three/drei'
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
+import { m } from 'framer-motion'
 import CharacterModel from './CharacterModel'
 import { StagePool, StudioLights } from './studioLook'
 import { LOOK_MODES, type LookMode } from '../lib/bodyRegions'
@@ -30,9 +31,6 @@ const VIEWS: { label: string; pos: [number, number, number] }[] = [
   { label: '背面', pos: [0, 1.3, -3.4] },
   { label: '俯视', pos: [0, 4.6, 0.9] },
 ]
-
-/** 播放中判定"临近某个关键帧"的归一化窗口（0-1） */
-const KEYFRAME_WINDOW = 0.05
 
 /**
  * 3D 动作查看器：
@@ -150,7 +148,7 @@ export default function ModelViewer({
     return () => window.removeEventListener('keydown', onKey)
   }, [setView, defaultPos, step])
 
-  // rAF 循环：直接操作 DOM 更新进度条 / 时间标签 / 关键帧临近检测，
+  // rAF 循环：直接操作 DOM 更新进度条 / 时间标签，
   // 避免 60fps 的 setState 引发整棵树重渲染
   useEffect(() => {
     let raf = 0
@@ -164,21 +162,11 @@ export default function ModelViewer({
       if (labelRef.current) {
         labelRef.current.textContent = `${cur.toFixed(1)}s / ${d.toFixed(1)}s`
       }
-      if (playing && keyframes.length > 0) {
-        let hit: number | null = null
-        for (const k of keyframes) {
-          if (Math.abs(pct - k.at) < KEYFRAME_WINDOW) {
-            hit = k.point
-            break
-          }
-        }
-        notifyPoint(hit)
-      }
       raf = requestAnimationFrame(loop)
     }
     raf = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(raf)
-  }, [playing, seek, duration, keyframes, notifyPoint])
+  }, [playing, seek, duration])
 
   // 暂停拖动时间轴：按指针位置换算归一化时刻
   const scrub = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -265,17 +253,28 @@ export default function ModelViewer({
         </GizmoHelper>
       </Canvas>
 
-      <div className="viewer-hint">左键旋转 · 滚轮缩放 · 右键平移 · 空格播放/暂停 · ←→ 关键帧</div>
-      {exercise.placeholder && (
-        <div className="viewer-badge">当前为占位演示动画，可替换为 Mixamo 标准动作</div>
-      )}
-      {exercise.generated && (
-        <div className="viewer-badge gen">程序生成的标准动作，可旋转查看关节轨迹</div>
-      )}
+      {/* HUD 角标栈：左上角统一收纳操作提示与数据徽标 */}
+      <div className="hud-stack">
+        <div className="viewer-hint">左键旋转 · 滚轮缩放 · 右键平移 · 空格播放/暂停 · ←→ 关键帧</div>
+        {exercise.placeholder && (
+          <div className="viewer-badge">当前为占位演示动画，可替换为 Mixamo 标准动作</div>
+        )}
+        {exercise.generated && (
+          <div className="viewer-badge gen">程序生成的标准动作，可旋转查看关节轨迹</div>
+        )}
       </div>
 
-      {/* 时间轴：拖动逐帧查看，圆点为关键帧，点击跳转并联动右侧要点 */}
-      <div className="timeline">
+      </div>
+
+      {/* 操作台放在画布下方，避免挡住贴地动作 */}
+      <m.div
+        className="viewer-dock"
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1], delay: 0.15 }}
+      >
+        {/* 时间轴：拖动逐帧查看，圆点为关键帧，点击跳转并联动右侧要点 */}
+        <div className="timeline">
         <button
           className="tb-btn"
           onClick={() => step(-1)}
@@ -324,8 +323,12 @@ export default function ModelViewer({
       </div>
 
       <div className="viewer-toolbar">
-        <button className="tb-btn primary" onClick={() => setPlaying((p) => !p)}>
-          {playing ? '⏸ 暂停' : '▶ 播放'}
+        <button
+          className="tb-btn primary play-toggle"
+          onClick={() => setPlaying((p) => !p)}
+          title="播放/暂停（空格）"
+        >
+          {playing ? '⏸' : '▶'}
         </button>
 
         <label className="tb-speed">
@@ -391,7 +394,8 @@ export default function ModelViewer({
         >
           自动旋转
         </button>
-      </div>
+        </div>
+      </m.div>
     </div>
   )
 }

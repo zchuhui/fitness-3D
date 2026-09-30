@@ -6,6 +6,7 @@ import TrainPage from './pages/TrainPage'
 import HistoryPage from './pages/HistoryPage'
 import PlanPage from './pages/PlanPage'
 import PosterStudio from './pages/PosterStudio'
+import { lenis } from './lib/smoothScroll'
 
 function ScrollToTop() {
   const { pathname, hash } = useLocation()
@@ -15,14 +16,17 @@ function ScrollToTop() {
       try {
         const el = document.querySelector(hash)
         if (el) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          // 有 lenis 时走它的 scrollTo，手感与全局平滑滚动一致（顶栏高约 60px，留 72px 偏移）
+          if (lenis) lenis.scrollTo(el as HTMLElement, { offset: -72 })
+          else el.scrollIntoView({ behavior: 'smooth', block: 'start' })
           return
         }
       } catch {
         // 非法选择器，退回顶部
       }
     }
-    window.scrollTo(0, 0)
+    if (lenis) lenis.scrollTo(0, { immediate: true })
+    else window.scrollTo(0, 0)
   }, [pathname, hash])
   return null
 }

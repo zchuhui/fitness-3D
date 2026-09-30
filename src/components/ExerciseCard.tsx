@@ -4,6 +4,7 @@ import { useGLTF } from '@react-three/drei'
 import { DIFFICULTY_CLASS } from '../types'
 import type { Exercise } from '../types'
 import { GROUP_COLOR, GROUP_FALLBACK, posterUrl, posterUrlPng } from '../lib/groupStyle'
+import { useTilt } from '../lib/useTilt'
 import CardThumb3D from './CardThumb3D'
 
 /**
@@ -31,6 +32,9 @@ export default function ExerciseCard({ exercise: e }: { exercise: Exercise }) {
       !window.matchMedia('(prefers-reduced-motion: reduce)').matches,
   ).current
 
+  /** 3D 倾斜 + 光标追光坐标（--mx/--my/--mxn），内部同样有指针与动效护栏 */
+  const { tiltRef, onTiltMove, onTiltLeave } = useTilt<HTMLAnchorElement>(5)
+
   const onMouseEnter = (_: MouseEvent) => {
     // 悬停预加载模型：点进详情页 / 悬停 3D 都秒开
     if (e.model.url.toLowerCase().endsWith('.glb')) useGLTF.preload(e.model.url)
@@ -41,6 +45,7 @@ export default function ExerciseCard({ exercise: e }: { exercise: Exercise }) {
   }
 
   const onMouseLeave = () => {
+    onTiltLeave?.()
     setHover(false)
     setThreeReady(false)
   }
@@ -64,11 +69,13 @@ export default function ExerciseCard({ exercise: e }: { exercise: Exercise }) {
 
   return (
     <Link
+      ref={tiltRef}
       to={`/exercise/${e.id}`}
       className="card card-v2"
       style={style}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
+      onMouseMove={onTiltMove}
     >
       <div className="card-stage">
         <span className="card-spot" />

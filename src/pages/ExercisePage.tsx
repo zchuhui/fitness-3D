@@ -1,10 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { m } from 'framer-motion'
 import ModelViewer from '../components/ModelViewer'
 import CompareView from '../components/CompareView'
 import { exercises } from '../data/exercises'
 import { DIFFICULTY_CLASS } from '../types'
 import type { ErrorVariant } from '../types'
+
+/** 路由过渡统一曲线 */
+const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1]
 
 export default function ExercisePage() {
   const { id } = useParams()
@@ -51,7 +55,12 @@ export default function ExercisePage() {
     !!exercise.errors?.length && !!(exercise.compareMotion || exercise.generated)
 
   return (
-    <div className="page detail">
+    <m.div
+      className="page detail"
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.55, ease: EASE }}
+    >
       <Link to="/" className="back">
         ← 返回动作库
       </Link>
@@ -127,7 +136,7 @@ export default function ExercisePage() {
 
           <section className="panel">
             <h2>✅ 动作要点</h2>
-            <p className="panel-tip">点击要点可跳到对应关键帧 · 播放到关键帧附近会自动高亮</p>
+            <p className="panel-tip">点击要点可跳到对应关键帧</p>
             <ol>
               {exercise.keyPoints.map((k, i) => {
                 const kf = exercise.keyframes?.find((f) => f.point === i)
@@ -184,6 +193,6 @@ export default function ExercisePage() {
           {next.name} →
         </Link>
       </nav>
-    </div>
+    </m.div>
   )
 }
