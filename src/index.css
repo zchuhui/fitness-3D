@@ -8,6 +8,19 @@
   --accent: #b8f135;
   --accent-dim: rgba(184, 241, 53, 0.14);
   --radius: 14px;
+  /* ---- 聚光灯舞台令牌 ---- */
+  --glow: rgba(184, 241, 53, 0.45);
+  --glow-soft: rgba(184, 241, 53, 0.16);
+  --glass: rgba(18, 21, 29, 0.72);
+  --hairline: rgba(255, 255, 255, 0.09);
+  /* 肌群品牌色：卡片 --grp 变量 / 3D 轮廓光共用（见 src/lib/groupStyle.ts） */
+  --grp-chest: #ff6b81;
+  --grp-back: #5ea2ff;
+  --grp-leg: #3ddc84;
+  --grp-shoulder: #ffc63d;
+  --grp-arm: #c58cff;
+  --grp-core: #ff7ac2;
+  --grp-full: #ff9a4d;
 }
 
 * {
@@ -483,15 +496,21 @@ main {
 
 /* ---------- 3D 查看器 ---------- */
 .viewer-wrap {
-  position: relative;
+  display: flex;
+  flex-direction: column;
   border-radius: var(--radius);
   overflow: hidden;
   border: 1px solid var(--border);
   background: #0d1017;
-  height: 600px;
 }
 
-.viewer-wrap canvas {
+.viewer-stage {
+  position: relative;
+  height: 600px;
+  min-height: 0;
+}
+
+.viewer-stage canvas {
   display: block;
 }
 
@@ -555,21 +574,14 @@ main {
 }
 
 .viewer-toolbar {
-  position: absolute;
-  left: 50%;
-  bottom: 14px;
-  transform: translateX(-50%);
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
   justify-content: center;
-  background: rgba(13, 16, 23, 0.78);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
+  background: #12161f;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
   padding: 8px 12px;
-  max-width: calc(100% - 24px);
 }
 
 .tb-btn {
@@ -641,19 +653,12 @@ main {
 
 /* ---------- 时间轴（逐帧拖动 + 关键帧步进） ---------- */
 .timeline {
-  position: absolute;
-  left: 50%;
-  bottom: 66px;
-  transform: translateX(-50%);
   display: flex;
   align-items: center;
   gap: 10px;
-  width: min(640px, calc(100% - 32px));
-  background: rgba(13, 16, 23, 0.78);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 10px;
-  padding: 8px 10px;
+  background: #10141c;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 10px 12px;
 }
 
 .tl-track {
@@ -1523,7 +1528,7 @@ main {
     grid-template-columns: 1fr;
   }
 
-  .viewer-wrap {
+  .viewer-stage {
     height: 480px;
   }
 
@@ -1531,11 +1536,11 @@ main {
     font-size: 32px;
   }
 
-  /* 工具栏单行横向滚动，避免换行后与时间轴重叠 */
+  /* 窄屏工具栏单行横滑，避免再叠到时间轴上 */
   .viewer-toolbar {
-    max-width: calc(100% - 24px);
     overflow-x: auto;
     flex-wrap: nowrap;
+    justify-content: flex-start;
   }
 
   /* 对比模式：双画布上下堆叠 */
@@ -1566,7 +1571,7 @@ main {
     width: 100%;
   }
 
-  .viewer-wrap {
+  .viewer-stage {
     height: 400px;
   }
 
@@ -1593,5 +1598,657 @@ main {
 
   .viewer-hint {
     display: none;
+  }
+}
+
+/* ============================================================
+   视觉重塑 · 聚光灯舞台（Spotlight Stage）
+   Hero 主舞台 / 卡片迷你舞台 / 编辑式排版 / 滚动显现
+   ============================================================ */
+
+/* ---------- 全局颗粒噪点（胶片质感覆盖层） ---------- */
+.app::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+  opacity: 0.032;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  background-size: 180px 180px;
+}
+
+/* ---------- 品牌标徽（替代 emoji logo） ---------- */
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo-mark {
+  width: 27px;
+  height: 27px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #d5ff6b, #8fce28);
+  color: #0a0c11;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 0 16px rgba(184, 241, 53, 0.35);
+}
+
+/* ---------- 首页 Hero：主舞台分栏 ---------- */
+.home-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.02fr) minmax(0, 0.98fr);
+  gap: 44px;
+  align-items: center;
+  padding: 68px 0 40px;
+}
+
+.hero-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.hero-eyebrow i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 0 rgba(184, 241, 53, 0.5);
+  animation: fm-pulse 2.2s infinite;
+}
+
+@keyframes fm-pulse {
+  70% {
+    box-shadow: 0 0 0 8px rgba(184, 241, 53, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(184, 241, 53, 0);
+  }
+}
+
+.home-hero h1 {
+  font-size: clamp(36px, 4.6vw, 60px);
+  line-height: 1.1;
+  letter-spacing: -0.5px;
+  margin: 18px 0 16px;
+  font-weight: 800;
+}
+
+.home-hero h1 em {
+  font-style: italic;
+  color: var(--accent);
+  text-shadow:
+    0 0 22px var(--glow-soft),
+    0 0 60px rgba(184, 241, 53, 0.25);
+  padding-right: 0.06em;
+}
+
+.home-hero .hero-lede {
+  color: var(--muted);
+  font-size: 15.5px;
+  line-height: 1.75;
+  max-width: 46ch;
+  margin: 0 0 26px;
+}
+
+.hero-cta {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 30px;
+}
+
+.cta-solid,
+.cta-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14.5px;
+  font-weight: 600;
+  padding: 12px 26px;
+  border-radius: 12px;
+  transition: all 0.18s ease;
+}
+
+.cta-solid {
+  background: var(--accent);
+  color: #10131a;
+  box-shadow: 0 6px 26px rgba(184, 241, 53, 0.28);
+}
+
+.cta-solid:hover {
+  background: #c9ff47;
+  transform: translateY(-2px);
+  box-shadow: 0 10px 34px rgba(184, 241, 53, 0.4);
+}
+
+.cta-ghost {
+  border: 1px solid var(--hairline);
+  background: var(--glass);
+  backdrop-filter: blur(10px);
+  color: var(--text);
+}
+
+.cta-ghost:hover {
+  border-color: rgba(184, 241, 53, 0.45);
+  color: var(--accent);
+}
+
+.hero-stats-v2 {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.hero-stat {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  border: 1px solid var(--hairline);
+  background: var(--glass);
+  backdrop-filter: blur(8px);
+  border-radius: 10px;
+  padding: 9px 14px;
+}
+
+.hero-stat b {
+  font-size: 17px;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.hero-stat span {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* ---------- Hero 右侧：3D 舞台 ---------- */
+.hero-stage {
+  position: relative;
+  height: 470px;
+  border-radius: 22px;
+  border: 1px solid var(--hairline);
+  overflow: hidden;
+  background:
+    radial-gradient(120% 90% at 50% -8%, #1a2233 0%, #0d1017 58%),
+    #0d1017;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 30px 70px rgba(0, 0, 0, 0.45);
+  cursor: grab;
+}
+
+.hero-stage:active {
+  cursor: grabbing;
+}
+
+.hero-halo {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(46% 58% at 50% 64%, rgba(184, 241, 53, 0.14), transparent 70%),
+    linear-gradient(180deg, rgba(94, 162, 255, 0.05), transparent 30%);
+}
+
+.hero-stage .card-3dlayer,
+.hero-stage-canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.stage-chip {
+  position: absolute;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text);
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--hairline);
+  background: var(--glass);
+  backdrop-filter: blur(10px);
+  pointer-events: none;
+  animation: fm-float 5s ease-in-out infinite;
+}
+
+.stage-chip::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.sc-1 {
+  top: 16px;
+  left: 16px;
+}
+
+.sc-2 {
+  top: 16px;
+  right: 16px;
+  animation-delay: 1.2s;
+}
+
+.sc-3 {
+  bottom: 46px;
+  right: 16px;
+  animation-delay: 2.4s;
+}
+
+@keyframes fm-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+.stage-caption {
+  position: absolute;
+  left: 18px;
+  bottom: 14px;
+  z-index: 3;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.stage-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+/* ---------- 区块头：编辑式序号 ---------- */
+.sec-head {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  margin: 60px 0 20px;
+}
+
+.sec-index {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  transform: translateY(-1px);
+}
+
+.sec-head h2 {
+  margin: 0;
+  font-size: 26px;
+  letter-spacing: 0.2px;
+}
+
+.sec-line {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--border), transparent);
+  transform: translateY(-4px);
+}
+
+.sec-sub {
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* ---------- 筛选栏抛光 ---------- */
+.chip {
+  display: inline-flex;
+  align-items: center;
+}
+
+.chip:active {
+  transform: scale(0.96);
+}
+
+.chip .cnt {
+  margin-left: 7px;
+  font-size: 10.5px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  transition: all 0.18s;
+}
+
+.chip:hover .cnt {
+  color: var(--text);
+}
+
+.chip.active .cnt {
+  background: rgba(0, 0, 0, 0.16);
+  color: #10131a;
+}
+
+.search-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.search-wrap svg {
+  position: absolute;
+  left: 12px;
+  width: 15px;
+  height: 15px;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.search-wrap .search {
+  padding-left: 34px;
+  transition: border-color 0.18s, box-shadow 0.18s;
+}
+
+.search-wrap .search:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(184, 241, 53, 0.12);
+}
+
+/* ---------- 卡片迷你舞台 ---------- */
+.card-v2 {
+  position: relative;
+  border-radius: 16px;
+}
+
+.card-stage {
+  position: relative;
+  height: 208px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(115% 95% at 50% -12%, color-mix(in srgb, var(--grp) 15%, transparent), transparent 62%),
+    linear-gradient(180deg, #151a25 0%, #0f131c 100%);
+}
+
+/* 顶部聚光锥 */
+.card-spot {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 130px;
+  height: 128%;
+  transform: translateX(-50%);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.025) 52%, transparent 74%);
+  clip-path: polygon(37% 0, 63% 0, 100% 100%, 0 100%);
+  filter: blur(2px);
+  opacity: 0.85;
+  transition: opacity 0.25s;
+  pointer-events: none;
+}
+
+.card-v2:hover .card-spot {
+  opacity: 1;
+}
+
+/* 地面椭圆光斑（肌群色） */
+.card-floor {
+  position: absolute;
+  bottom: 9px;
+  left: 50%;
+  width: 62%;
+  height: 22px;
+  transform: translateX(-50%);
+  background: radial-gradient(50% 100% at 50% 50%, color-mix(in srgb, var(--grp) 40%, transparent), transparent 72%);
+  filter: blur(3px);
+  transition: all 0.3s;
+  pointer-events: none;
+}
+
+.card-v2:hover .card-floor {
+  width: 72%;
+  background: radial-gradient(50% 100% at 50% 50%, color-mix(in srgb, var(--grp) 60%, transparent), transparent 72%);
+}
+
+.card-poster {
+  position: relative;
+  z-index: 1;
+  height: 88%;
+  max-width: 94%;
+  object-fit: contain;
+  transition:
+    transform 0.35s cubic-bezier(0.22, 0.61, 0.36, 1),
+    opacity 0.32s ease;
+}
+
+.card-v2:hover .card-poster {
+  transform: translateY(-5px) scale(1.03) rotate(-0.5deg);
+}
+
+/* 实时模型淡入后收起海报。画布是透明的，不收的话两层人物会错位叠成重影 */
+.card-stage:has(.card-3dlayer.on) .card-poster {
+  opacity: 0;
+  transform: none;
+}
+
+/* 降级：海报缺失时回到渐变 + 图标（保底视觉） */
+.card-fallback {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 54px;
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.45));
+}
+
+/* 悬停实时 3D 画布：覆盖舞台，模型就绪后交叉淡入 */
+.card-3dlayer {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  opacity: 0;
+  transition: opacity 0.32s ease 0.04s;
+}
+
+.card-3dlayer.on {
+  opacity: 1;
+}
+
+/* LIVE 3D 胶囊（替代旧 3D 角标） */
+.card-live {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(10, 14, 10, 0.55);
+  border: 1px solid rgba(184, 241, 53, 0.4);
+  backdrop-filter: blur(6px);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  color: var(--accent);
+  pointer-events: none;
+}
+
+.card-live::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 0 rgba(184, 241, 53, 0.5);
+  animation: fm-pulse 2s infinite;
+}
+
+/* 卡片悬停：肌群色边框辉光 */
+.card-v2:hover {
+  transform: translateY(-5px);
+  border-color: color-mix(in srgb, var(--grp) 55%, transparent);
+  box-shadow:
+    0 18px 42px rgba(0, 0, 0, 0.45),
+    0 0 0 1px color-mix(in srgb, var(--grp) 32%, transparent),
+    0 0 36px color-mix(in srgb, var(--grp) 15%, transparent);
+}
+
+/* 难度彩色圆点 */
+.tag.diff {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.diff-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.diff-dot.dd-easy {
+  background: #4ade80;
+  box-shadow: 0 0 7px rgba(74, 222, 128, 0.55);
+}
+
+.diff-dot.dd-mid {
+  background: #fbbf24;
+  box-shadow: 0 0 7px rgba(251, 191, 36, 0.55);
+}
+
+.diff-dot.dd-hard {
+  background: #f87171;
+  box-shadow: 0 0 7px rgba(248, 113, 113, 0.55);
+}
+
+/* ---------- 滚动显现 ---------- */
+.reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition:
+    opacity 0.6s ease,
+    transform 0.6s cubic-bezier(0.22, 0.61, 0.36, 1);
+  will-change: opacity, transform;
+}
+
+.reveal.in {
+  opacity: 1;
+  transform: none;
+}
+
+.grid > .reveal {
+  display: flex;
+  flex-direction: column;
+}
+
+.grid > .reveal > .card {
+  width: 100%;
+  flex: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  .stage-chip,
+  .hero-eyebrow i,
+  .card-live::before {
+    animation: none;
+  }
+}
+
+/* ---------- 计划卡抛光 ---------- */
+.plan-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  border-radius: 3px 3px 0 0;
+  background: linear-gradient(90deg, var(--accent), rgba(184, 241, 53, 0.08));
+  opacity: 0;
+  transition: opacity 0.25s;
+}
+
+.plan-card:hover::before {
+  opacity: 1;
+}
+
+.plan-go {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: transform 0.2s;
+}
+
+.plan-card:hover .plan-go {
+  transform: translateX(4px);
+}
+
+/* ---------- 首页响应式 ---------- */
+@media (max-width: 960px) {
+  .home-hero {
+    grid-template-columns: 1fr;
+    gap: 30px;
+    padding: 44px 0 28px;
+  }
+
+  .hero-stage {
+    height: 380px;
+  }
+}
+
+@media (max-width: 560px) {
+  .home-hero {
+    padding: 30px 0 20px;
+  }
+
+  .home-hero h1 {
+    font-size: 33px;
+  }
+
+  .hero-stage {
+    height: 300px;
+  }
+
+  .sc-2 {
+    display: none;
+  }
+
+  .sec-head h2 {
+    font-size: 21px;
+  }
+
+  .card-stage {
+    height: 186px;
   }
 }

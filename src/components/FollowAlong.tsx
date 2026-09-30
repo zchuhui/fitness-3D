@@ -2,6 +2,8 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { Canvas } from '@react-three/fiber'
 import { ContactShadows, Grid, Html, OrbitControls } from '@react-three/drei'
 import CharacterModel from './CharacterModel'
+import { StagePool, StudioLights } from './studioLook'
+import { GROUP_COLOR } from '../lib/groupStyle'
 import type { Exercise } from '../types'
 import { cueBeep, doneBeep, readyBeep, repBeep, tickBeep } from '../lib/beep'
 import { isSfxEnabled, setSfxEnabled } from '../lib/beep'
@@ -42,20 +44,7 @@ function Stage({
     <Canvas shadows dpr={[1, 1.5]} camera={{ position: floor ? FLOOR_POS : POS, fov: 42 }}>
       <color attach="background" args={['#0d1017']} />
       <fog attach="fog" args={['#0d1017', 9, 18]} />
-      <ambientLight intensity={0.35} />
-      <directionalLight
-        position={[4, 6, 3]}
-        intensity={1.6}
-        castShadow
-        shadow-mapSize-width={1024}
-        shadow-mapSize-height={1024}
-        shadow-camera-left={-4}
-        shadow-camera-right={4}
-        shadow-camera-top={6}
-        shadow-camera-bottom={-2}
-        shadow-camera-far={20}
-      />
-      <directionalLight position={[-5, 4, -4]} intensity={0.5} color="#9db8ff" />
+      <StudioLights accent={GROUP_COLOR[exercise.muscle]} />
       <Suspense
         fallback={
           <Html center>
@@ -77,6 +66,7 @@ function Stage({
         />
       </Suspense>
       <ContactShadows position={[0, 0, 0]} opacity={0.55} scale={9} blur={2.2} far={4.5} resolution={512} color="#000000" />
+      <StagePool color={GROUP_COLOR[exercise.muscle]} />
       <Grid
         position={[0, 0.01, 0]}
         args={[12, 12]}

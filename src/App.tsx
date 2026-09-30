@@ -5,6 +5,7 @@ import ExercisePage from './pages/ExercisePage'
 import TrainPage from './pages/TrainPage'
 import HistoryPage from './pages/HistoryPage'
 import PlanPage from './pages/PlanPage'
+import PosterStudio from './pages/PosterStudio'
 
 function ScrollToTop() {
   const { pathname, hash } = useLocation()
@@ -32,7 +33,10 @@ export default function App() {
       <ScrollToTop />
       <header className="site-header">
         <Link to="/" className="logo">
-          🏋️ FitMotion <b>3D</b>
+          <span className="logo-mark" aria-hidden="true">
+            FM
+          </span>
+          FitMotion <b>3D</b>
         </Link>
         <nav className="main-nav">
           <Link to={{ pathname: '/', hash: '#plans' }}>训练计划</Link>
@@ -47,6 +51,8 @@ export default function App() {
           <Route path="/train/:id" element={<TrainPage />} />
           <Route path="/plan/:id" element={<PlanPage />} />
           <Route path="/history" element={<HistoryPage />} />
+          {/* dev 专用隐藏路由：批量生成卡片海报 */}
+          <Route path="/poster-studio" element={<PosterStudio />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

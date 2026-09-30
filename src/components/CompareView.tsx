@@ -4,6 +4,8 @@ import { ContactShadows, Grid, Html, OrbitControls } from '@react-three/drei'
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
 import { useRef } from 'react'
 import CharacterModel from './CharacterModel'
+import { StagePool, StudioLights } from './studioLook'
+import { GROUP_COLOR } from '../lib/groupStyle'
 import type { ErrorVariant, Exercise } from '../types'
 
 /** 双画布各自独立的相机参数（低机位给俯卧/卧姿动作） */
@@ -36,10 +38,11 @@ interface StageProps {
   motionId: string
   playing: boolean
   speed: number
+  accent: string
 }
 
 /** 单个对比画布：X Bot + 程序生成动作，独立旋转查看 */
-function Stage({ title, tone, motionId, playing, speed }: StageProps) {
+function Stage({ title, tone, motionId, playing, speed, accent }: StageProps) {
   const controlsRef = useRef<OrbitControlsImpl>(null)
   const floor = isFloor(motionId)
   const pos = floor ? FLOOR_POS : POS
@@ -52,20 +55,7 @@ function Stage({ title, tone, motionId, playing, speed }: StageProps) {
         <color attach="background" args={['#0d1017']} />
         <fog attach="fog" args={['#0d1017', 9, 18]} />
 
-        <ambientLight intensity={0.35} />
-        <directionalLight
-          position={[4, 6, 3]}
-          intensity={1.6}
-          castShadow
-          shadow-mapSize-width={1024}
-          shadow-mapSize-height={1024}
-          shadow-camera-left={-4}
-          shadow-camera-right={4}
-          shadow-camera-top={6}
-          shadow-camera-bottom={-2}
-          shadow-camera-far={20}
-        />
-        <directionalLight position={[-5, 4, -4]} intensity={0.5} color="#9db8ff" />
+        <StudioLights accent={accent} />
 
         <Suspense
           fallback={
@@ -90,6 +80,7 @@ function Stage({ title, tone, motionId, playing, speed }: StageProps) {
           resolution={512}
           color="#000000"
         />
+        <StagePool color={accent} />
         <Grid
           position={[0, 0.01, 0]}
           args={[12, 12]}
@@ -183,8 +174,22 @@ export default function CompareView({
       </div>
 
       <div className="cv-grid">
-        <Stage title="✅ 标准" tone="good" motionId={standardMotion ?? ''} playing={playing} speed={speed} />
-        <Stage title={`❌ ${error.label}`} tone="bad" motionId={error.motionId} playing={playing} speed={speed} />
+        <Stage
+          title="✅ 标准"
+          tone="good"
+          motionId={standardMotion ?? ''}
+          playing={playing}
+          speed={speed}
+          accent={GROUP_COLOR[exercise.muscle]}
+        />
+        <Stage
+          title={`❌ ${error.label}`}
+          tone="bad"
+          motionId={error.motionId}
+          playing={playing}
+          speed={speed}
+          accent={GROUP_COLOR[exercise.muscle]}
+        />
       </div>
 
       <div className="viewer-hint" style={{ position: 'static', marginTop: 10, textAlign: 'center' }}>

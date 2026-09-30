@@ -60,6 +60,7 @@ export const exercises: Exercise[] = [
     compareMotion: 'squat',
     program: { sets: 4, reps: 10, restSeconds: 120 },
     model: { url: '/models/Back Squat.fbx' },
+    posterAt: 0.45,
     placeholder: false,
   },
   {
@@ -140,6 +141,7 @@ export const exercises: Exercise[] = [
     compareMotion: 'push-up',
     program: { sets: 3, reps: 12, restSeconds: 90 },
     model: { url: '/models/Push Up.fbx' },
+    posterAt: 0.42,
     placeholder: false,
   },
   {
@@ -196,6 +198,7 @@ export const exercises: Exercise[] = [
     ],
     program: { sets: 4, reps: 6, restSeconds: 180 },
     model: { url: '/models/Xbot.glb', clip: 'deadlift' },
+    posterAt: 0.5,
     generated: true,
   },
   {
@@ -245,6 +248,7 @@ export const exercises: Exercise[] = [
     ],
     program: { sets: 3, reps: 10, restSeconds: 90 },
     model: { url: '/models/Xbot.glb', clip: 'lunge' },
+    posterAt: 0.42,
     generated: true,
   },
   {
@@ -271,6 +275,7 @@ export const exercises: Exercise[] = [
     ],
     errors: [{ label: '甩动身体借力', motionId: 'bicep-curl-x-swing' }],
     program: { sets: 3, reps: 12, restSeconds: 60 },
+    posterAt: 0.52,
     model: { url: '/models/Xbot.glb', clip: 'bicep-curl' },
     generated: true,
   },

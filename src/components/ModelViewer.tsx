@@ -10,6 +10,8 @@ import {
 } from '@react-three/drei'
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
 import CharacterModel from './CharacterModel'
+import { StagePool, StudioLights } from './studioLook'
+import { GROUP_COLOR } from '../lib/groupStyle'
 import type { Exercise } from '../types'
 
 /** 默认相机位置 */
@@ -186,24 +188,12 @@ export default function ModelViewer({
 
   return (
     <div className="viewer-wrap">
+      <div className="viewer-stage">
       <Canvas shadows dpr={[1, 2]} camera={{ position: defaultPos, fov: 42 }}>
         <color attach="background" args={['#0d1017']} />
         <fog attach="fog" args={['#0d1017', 9, 18]} />
 
-        <ambientLight intensity={0.35} />
-        <directionalLight
-          position={[4, 6, 3]}
-          intensity={1.6}
-          castShadow
-          shadow-mapSize-width={2048}
-          shadow-mapSize-height={2048}
-          shadow-camera-left={-4}
-          shadow-camera-right={4}
-          shadow-camera-top={6}
-          shadow-camera-bottom={-2}
-          shadow-camera-far={20}
-        />
-        <directionalLight position={[-5, 4, -4]} intensity={0.5} color="#9db8ff" />
+        <StudioLights accent={GROUP_COLOR[exercise.muscle]} shadowMap={2048} />
 
         <Suspense
           fallback={
@@ -237,6 +227,7 @@ export default function ModelViewer({
           resolution={512}
           color="#000000"
         />
+        <StagePool color={GROUP_COLOR[exercise.muscle]} />
         <Grid
           position={[0, 0.01, 0]}
           args={[12, 12]}
@@ -262,7 +253,7 @@ export default function ModelViewer({
           maxPolarAngle={Math.PI / 2 + 0.08}
         />
 
-        <GizmoHelper alignment="bottom-right" margin={[64, 64]}>
+        <GizmoHelper alignment="bottom-right" margin={[18, 18]}>
           <GizmoViewport axisColors={['#f87171', '#4ade80', '#60a5fa']} labelColor="#e8ecf4" />
         </GizmoHelper>
       </Canvas>
@@ -274,6 +265,7 @@ export default function ModelViewer({
       {exercise.generated && (
         <div className="viewer-badge gen">程序生成的标准动作，可旋转查看关节轨迹</div>
       )}
+      </div>
 
       {/* 时间轴：拖动逐帧查看，圆点为关键帧，点击跳转并联动右侧要点 */}
       <div className="timeline">

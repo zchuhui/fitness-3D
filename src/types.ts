@@ -81,4 +81,9 @@ export interface Exercise {
   generated?: boolean
   /** 仰卧、卧推等贴地动作，查看器把视线放低 */
   camera?: 'floor'
+  /**
+   * 招牌姿势：归一化时刻（0–1），用于卡片海报图（/poster-studio 渲染）。
+   * 缺省取关键帧列表的中间一帧，再缺省取 0.4。
+   */
+  posterAt?: number
 }

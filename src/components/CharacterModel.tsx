@@ -2,9 +2,10 @@ import { useEffect, useMemo, useRef } from 'react'
 import type { MutableRefObject } from 'react'
 import { useAnimations, useFBX, useGLTF } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
-import { Box3, Group, Mesh, Vector3 } from 'three'
+import { Box3, Group, Vector3 } from 'three'
 import type { AnimationClip, Object3D } from 'three'
 import { buildGeneratedClip } from '../motion/buildClip'
+import { dressMannequin } from './studioLook'
 
 export interface CharacterModelProps {
   /** 模型文件 URL，支持 .glb / .fbx（Mixamo 直接下载的 FBX Binary 即可用） */
@@ -74,16 +75,9 @@ function Rig({ object, clips, clip, playing, speed, onClips, time, timeRef, onDu
     }
   }, [object])
 
-  // 开启阴影；关闭蒙皮网格的视锥剔除（否则旋转视角时模型可能整块消失，经典坑）
+  // 换成身体/关节两套材质，并开启阴影。关闭视锥剔除，避免旋转时模型整块消失
   useMemo(() => {
-    object.traverse((o) => {
-      const mesh = o as Mesh
-      if (mesh.isMesh) {
-        mesh.castShadow = true
-        mesh.receiveShadow = true
-        mesh.frustumCulled = false
-      }
-    })
+    dressMannequin(object)
   }, [object])
 
   // 向父组件汇报动画剪辑列表
