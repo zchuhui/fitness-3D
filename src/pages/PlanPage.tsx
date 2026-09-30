@@ -143,7 +143,7 @@ export default function PlanPage() {
   const current = steps[step]
 
   return (
-    <div className="page detail">
+    <div className="page train-screen">
       <div className="plan-progress">
         <span className="plan-progress-label">
           {plan.name} · {step + 1} / {steps.length}

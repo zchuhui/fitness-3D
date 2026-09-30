@@ -1064,6 +1064,89 @@ main {
 }
 
 /* ---------- 跟练模式 ---------- */
+/* 跟练占满视口：藏页脚，主区域一屏，舞台拉满剩余高度 */
+.app:has(.train-screen) {
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.app:has(.train-screen) .site-footer {
+  display: none;
+}
+
+.app:has(.train-screen) main {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.train-screen {
+  flex: 1;
+  min-height: 0;
+  max-width: none;
+  width: 100%;
+  padding: 12px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
+}
+
+.train-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.train-bar .back {
+  margin: 0;
+  flex: none;
+}
+
+.train-bar h1 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.train-bar h1 .en {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 400;
+  margin-left: 8px;
+}
+
+.train-bar .save-toast {
+  margin: 0 0 0 auto;
+  flex: none;
+}
+
+.train-screen .plan-progress {
+  flex: none;
+  margin: 0;
+}
+
+.train-screen .fa-wrap {
+  flex: 1;
+  min-height: 0;
+  align-items: stretch;
+}
+
+.train-screen .fa-stage {
+  height: 100%;
+  min-height: 0;
+}
+
+.train-screen .fa-panel {
+  min-height: 0;
+  overflow: auto;
+}
+
 .fa-wrap {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 340px;
@@ -1680,6 +1763,15 @@ main {
 
 /* ---------- 响应式 ---------- */
 @media (max-width: 960px) {
+  .train-screen .fa-wrap {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) minmax(0, 42%);
+  }
+
+  .train-bar h1 .en {
+    display: none;
+  }
+
   .detail-grid {
     grid-template-columns: 1fr;
   }

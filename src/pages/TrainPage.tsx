@@ -40,27 +40,19 @@ export default function TrainPage() {
   }
 
   return (
-    <div className="page detail">
-      <Link to={`/exercise/${exercise.id}`} className="back">
-        ← 返回动作详情
-      </Link>
-
-      <header className="detail-header">
-        <div>
-          <h1>
-            跟练 · {exercise.name}
-            <span className="en">{exercise.nameEn}</span>
-          </h1>
-          <p className="desc">{exercise.description}</p>
-        </div>
-        <div className="detail-badges">
-          <span className="tag">{exercise.muscle}</span>
-          <span className={`tag diff-${DIFFICULTY_CLASS[exercise.difficulty]}`}>{exercise.difficulty}</span>
-          <span className="tag">{exercise.equipment}</span>
-        </div>
-      </header>
-
-      {saved && <div className="save-toast">✅ 本次训练已写入训练日志，去「训练历史」看看你的坚持</div>}
+    <div className="page train-screen">
+      <div className="train-bar">
+        <Link to={`/exercise/${exercise.id}`} className="back">
+          ← 返回动作详情
+        </Link>
+        <h1>
+          跟练 · {exercise.name}
+          <span className="en">{exercise.nameEn}</span>
+        </h1>
+        <span className="tag">{exercise.muscle}</span>
+        <span className={`tag diff-${DIFFICULTY_CLASS[exercise.difficulty]}`}>{exercise.difficulty}</span>
+        {saved && <span className="save-toast">已写入训练日志</span>}
+      </div>
 
       <FollowAlongPanel key={exercise.id} exercise={exercise} onFinish={handleFinish} />
     </div>
