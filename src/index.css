@@ -540,6 +540,9 @@ main {
 
 .detail-badges {
   display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 8px;
 }
 
@@ -699,10 +702,14 @@ main {
   flex: none;
   padding: 0;
   border-radius: 50%;
-  font-size: 14px;
+  line-height: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.tb-btn.play-toggle svg {
+  display: block;
 }
 
 .tb-btn {
@@ -1488,14 +1495,24 @@ main {
 
 /* ---------- 跟练入口 / 计划区块 ---------- */
 .train-btn {
-  color: var(--accent);
-  border: 1px solid rgba(184, 241, 53, 0.4);
-  background: rgba(184, 241, 53, 0.1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 6px;
+  padding: 12px 26px;
+  border-radius: 12px;
+  background: var(--accent);
+  color: #10131a;
+  border: none;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.04em;
   text-decoration: none;
 }
 
 .train-btn:hover {
-  background: var(--accent-dim);
+  background: #c8f85a;
 }
 
 .chip-divider {

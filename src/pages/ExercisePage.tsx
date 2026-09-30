@@ -89,8 +89,8 @@ export default function ExercisePage() {
             </button>
           )}
           {exercise.program && (
-            <Link to={`/train/${exercise.id}`} className="tag train-btn" title="跟着 3D 节拍训练">
-              🏃 跟练
+            <Link to={`/train/${exercise.id}`} className="train-btn" title="跟着 3D 节拍训练">
+              跟练
             </Link>
           )}
         </div>

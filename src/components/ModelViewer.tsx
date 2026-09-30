@@ -248,7 +248,7 @@ export default function ModelViewer({
           maxPolarAngle={Math.PI / 2 + 0.08}
         />
 
-        <GizmoHelper alignment="bottom-right" margin={[18, 18]}>
+        <GizmoHelper alignment="bottom-right" margin={[80, 80]}>
           <GizmoViewport axisColors={['#f87171', '#4ade80', '#60a5fa']} labelColor="#e8ecf4" />
         </GizmoHelper>
       </Canvas>
@@ -328,7 +328,7 @@ export default function ModelViewer({
           onClick={() => setPlaying((p) => !p)}
           title="播放/暂停（空格）"
         >
-          {playing ? '⏸' : '▶'}
+          {playing ? <PauseIcon /> : <PlayIcon />}
         </button>
 
         <label className="tb-speed">
@@ -397,5 +397,24 @@ export default function ModelViewer({
         </div>
       </m.div>
     </div>
+  )
+}
+
+/** 几何居中的播放三角。表情符号的字形盒偏左，放进圆钮会看起来不在中心。 */
+function PlayIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 14 14" aria-hidden="true">
+      <path d="M5 2.3 12.2 7 5 11.7Z" fill="currentColor" />
+    </svg>
+  )
+}
+
+/** 两根暂停竖条，相对 viewBox 左右上下对称 */
+function PauseIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 14 14" aria-hidden="true">
+      <rect x="2.75" y="2" width="3" height="10" rx="0.7" fill="currentColor" />
+      <rect x="8.25" y="2" width="3" height="10" rx="0.7" fill="currentColor" />
+    </svg>
   )
 }
