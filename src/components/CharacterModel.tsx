@@ -26,8 +26,13 @@ export interface CharacterModelProps {
   onClips?: (names: string[]) => void
   /** 设置后播放程序生成的标准动作，不再使用模型文件自带的剪辑 */
   motionId?: string
-  /** 把动画钉到这个时刻（秒）。仅暂停时生效；播放中传 undefined */
+  /**
+   * 把动画定位到这个时刻（秒）。数值不变时不会每帧拉回，
+   * 所以可以先钉在招牌姿势上，再把 playing 打开从这里继续播。
+   */
   time?: number
+  /** 切入剪辑的淡入秒数。封面要立刻定格，传 0 */
+  blend?: number
   /** 每帧把当前动画时间（秒）写入该 ref，供外部进度条读取，不触发 React 重渲染 */
   timeRef?: MutableRefObject<number>
   /** 当前剪辑加载 / 切换后汇报时长（秒） */
@@ -89,6 +94,7 @@ function Rig({
   speed,
   onClips,
   time,
+  blend = 0.25,
   timeRef,
   onDuration,
   motionId,
@@ -166,14 +172,17 @@ function Rig({
     if (action) onDuration?.(action.getClip().duration)
   }, [action, onDuration])
 
-  // 切换剪辑：淡入新动画
+  // 切换剪辑。blend 为 0 时立刻满权重，避免从绑定姿势塌进动作（封面悬停会看成下坠）
   useEffect(() => {
     if (!action) return
-    action.reset().fadeIn(0.25).play()
+    action.reset()
+    if (blend > 0) action.fadeIn(blend)
+    else action.setEffectiveWeight(1)
+    action.play()
     return () => {
       action.fadeOut(0.2)
     }
-  }, [action])
+  }, [action, blend])
 
   // 播放 / 暂停 / 倍速
   useEffect(() => {

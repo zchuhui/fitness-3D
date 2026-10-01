@@ -98,6 +98,9 @@ function segmentBlend(u: number, seg?: MotionSegment) {
   const hold = Math.min(0.45, Math.max(0, seg?.hold ?? 0))
   const span = 1 - hold
   const move = span < 1e-4 ? 1 : Math.min(1, Math.max(0, u / span))
+  if (seg?.ease === 'linear') return move
+  if (seg?.ease === 'in') return move * move
+  if (seg?.ease === 'out') return 1 - (1 - move) * (1 - move)
   const s = smooth(move)
   const tempo = seg?.tempo ?? 1
   if (tempo > 1.05) return Math.pow(s, Math.min(tempo, 3))
@@ -152,7 +155,7 @@ function worldOf(bone: Bone, target: Vector3) {
 }
 
 /** 把某个姿势落到角色上，并按着地方式修正髋部。handAnchor 在双手固定时于第一帧写入。 */
-function applyPose(rig: Rig, motion: MotionDef, pose: MotionPose, handAnchor: Vector3 | null) {
+function applyPose(rig: Rig, motion: MotionDef, pose: MotionPose, handAnchor: Vector3 | null, time: number) {
   for (const bone of rig.bones.values()) bone.quaternion.identity()
   rig.hips.position.set(...REST_HIP)
   rig.hips.quaternion.identity()
@@ -161,6 +164,7 @@ function applyPose(rig: Rig, motion: MotionDef, pose: MotionPose, handAnchor: Ve
     const bone = rig.bones.get(fullName(name))
     if (bone) bone.quaternion.copy(eulerQuat(e))
   }
+  applyBreath(rig, time)
   if (pose.hipsRot) rig.hips.quaternion.copy(eulerQuat(pose.hipsRot))
   if (motion.plant === 'none' && pose.hips) rig.hips.position.set(...pose.hips)
 
@@ -283,20 +287,15 @@ const BREATH_AMP: Record<string, number> = {
   mixamorigSpine2: 0.014,
 }
 
-/** 胸腔骨骼叠一层慢正弦，静止动作（平板支撑等）不会僵住 */
-function applyBreath(times: number[], quatValues: Map<string, number[]>) {
-  const axis = new Vector3(1, 0, 0)
-  const breathQ = new Quaternion()
-  const tmpQ = new Quaternion()
+const BREATH_AXIS = new Vector3(1, 0, 0)
+const breathQ = new Quaternion()
+
+/** 胸腔骨骼叠一层慢正弦，静止动作（平板支撑等）不会僵住。须在着地解算之前叠加，否则撑地的手会跟着浮动 */
+function applyBreath(rig: Rig, time: number) {
+  const w = Math.sin(time * Math.PI * 2 * 0.5)
   for (const [name, amp] of Object.entries(BREATH_AMP)) {
-    const arr = quatValues.get(name)
-    if (!arr) continue
-    for (let i = 0; i < times.length; i++) {
-      const w = Math.sin(times[i] * Math.PI * 2 * 0.5) * amp
-      breathQ.setFromAxisAngle(axis, w)
-      tmpQ.fromArray(arr, i * 4).multiply(breathQ)
-      tmpQ.toArray(arr, i * 4)
-    }
+    const bone = rig.bones.get(name)
+    if (bone) bone.quaternion.multiply(breathQ.setFromAxisAngle(BREATH_AXIS, w * amp))
   }
 }
 
@@ -314,7 +313,7 @@ function runMotion(rig: Rig, id: string, times: number[]) {
 
   for (const t of times) {
     const pose = poseAt(motion, t)
-    handAnchor = applyPose(rig, motion, pose, handAnchor)
+    handAnchor = applyPose(rig, motion, pose, handAnchor, t)
     samples.push(readSample(rig, t))
     hipPos.push(rig.hips.position.x, rig.hips.position.y, rig.hips.position.z)
     rig.hips.quaternion.toArray(hipQuat, hipQuat.length)
@@ -325,8 +324,6 @@ function runMotion(rig: Rig, id: string, times: number[]) {
       else arr.push(0, 0, 0, 1)
     }
   }
-
-  applyBreath(times, quatValues)
 
   const tracks = [
     new VectorKeyframeTrack(`${HIP}.position`, times, hipPos),

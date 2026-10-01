@@ -1,21 +1,44 @@
-import { Suspense, useEffect, useState } from 'react'
-import { Canvas } from '@react-three/fiber'
+import { Suspense, useEffect, useRef, useState, type RefObject } from 'react'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { ContactShadows, OrbitControls } from '@react-three/drei'
+import { Group, PerspectiveCamera } from 'three'
 import CharacterModel from './CharacterModel'
 import { StudioLights } from './studioLook'
 import { GROUP_COLOR } from '../lib/groupStyle'
+import { COVER_FOV, frameCover, posterAtOf, type CoverView } from '../lib/posterFrame'
 import type { Exercise } from '../types'
 
 /**
  * 卡片迷你 3D 画布：仅在悬停时由父组件挂载（单实例，离开即卸载）。
- * 模型加载完成后回调 onReady → 父组件把画布交叉淡入盖在海报上。
+ * 先钉在和海报相同的招牌姿势、用同一套贴地取景，交叉淡入后再开播，
+ * 避免人物从绑定姿势塌下来，或相对封面跳一截。
  */
 
-/** 挂进 Suspense 里：组件出现即意味着模型已就绪 */
-function ReadyMarker({ onReady }: { onReady: () => void }) {
-  useEffect(() => {
-    onReady()
-  }, [onReady])
+function CoverCamera({
+  armed,
+  root,
+  view,
+  onFramed,
+}: {
+  armed: boolean
+  root: RefObject<Group>
+  view?: CoverView
+  onFramed: (target: [number, number, number]) => void
+}) {
+  const camera = useThree((s) => s.camera)
+  const size = useThree((s) => s.size)
+  const step = useRef(0)
+  const done = useRef(false)
+
+  useFrame(() => {
+    if (!armed || done.current || !root.current) return
+    step.current += 1
+    if (step.current < 3) return
+    done.current = true
+    const target = frameCover(camera as PerspectiveCamera, root.current, size.width / Math.max(size.height, 1), view)
+    onFramed(target)
+  })
+
   return null
 }
 
@@ -25,7 +48,7 @@ export default function CardThumb3D({
   onReady,
 }: {
   exercise: Exercise
-  /** true = 画布淡入（模型已就绪） */
+  /** true = 画布淡入（取景完成） */
   ready: boolean
   onReady: () => void
 }) {
@@ -35,53 +58,76 @@ export default function CardThumb3D({
    * 不重渲染一次 action 永远是 null（人物会停在 T-pose 不动）。
    */
   const [, setClipNames] = useState<string[]>([])
-  /**
-   * 外层 div 负责绝对定位 + 交叉淡入（.card-3dlayer）；
-   * 不把定位类直接挂在 Canvas 上——R3F 的内联 position:relative 会覆盖类样式
-   */
+  const [duration, setDuration] = useState(0)
+  /** 淡入完成前先停在招牌姿势，和海报对齐；之后再接着播 */
+  const [play, setPlay] = useState(false)
+  const [target, setTarget] = useState<[number, number, number] | null>(null)
+  const root = useRef<Group>(null)
+  const onReadyRef = useRef(onReady)
+  onReadyRef.current = onReady
+
+  useEffect(() => {
+    if (!target) return
+    onReadyRef.current()
+    const timer = window.setTimeout(() => setPlay(true), 360)
+    return () => window.clearTimeout(timer)
+  }, [target])
+
   return (
     <div className={`card-3dlayer ${ready ? 'on' : ''}`}>
       <Canvas
         dpr={[1, 1.5]}
-        camera={{ position: [2.25, 1.2, 2.65], fov: 40, near: 0.1, far: 40 }}
+        camera={{ position: [2.4, 1.3, 2.7], fov: COVER_FOV, near: 0.05, far: 80 }}
         gl={{ antialias: true, alpha: true }}
         onCreated={({ gl }) => gl.setClearColor('#000000', 0)}
       >
         <StudioLights accent={GROUP_COLOR[exercise.muscle]} shadows={false} />
         <Suspense fallback={null}>
-          <CharacterModel
-            url={exercise.model.url}
-            clip={exercise.model.clip}
-            motionId={exercise.generated ? exercise.model.clip : undefined}
-            playing
-            speed={0.55}
-            onClips={setClipNames}
-            muscle={exercise.muscle}
-            accent={GROUP_COLOR[exercise.muscle]}
-          />
-          <ReadyMarker onReady={onReady} />
+          <group ref={root}>
+            <CharacterModel
+              url={exercise.model.url}
+              clip={exercise.model.clip}
+              motionId={exercise.generated ? exercise.model.clip : undefined}
+              playing={play}
+              blend={0}
+              speed={0.55}
+              time={duration > 0 ? posterAtOf(exercise) * duration : undefined}
+              onClips={setClipNames}
+              onDuration={setDuration}
+              muscle={exercise.muscle}
+              accent={GROUP_COLOR[exercise.muscle]}
+            />
+          </group>
         </Suspense>
+        <CoverCamera
+          armed={duration > 0}
+          root={root}
+          view={exercise.posterView}
+          onFramed={setTarget}
+        />
         <ContactShadows
           position={[0, 0, 0]}
-          opacity={0.5}
+          opacity={0.45}
           scale={5}
           blur={2.4}
           far={3}
           resolution={256}
           color="#000000"
         />
-        <OrbitControls
-          makeDefault
-          target={[0, 0.9, 0]}
-          enableZoom={false}
-          enablePan={false}
-          autoRotate
-          autoRotateSpeed={2.6}
-          enableDamping
-          dampingFactor={0.08}
-          minPolarAngle={0.55}
-          maxPolarAngle={Math.PI / 2 + 0.05}
-        />
+        {target && (
+          <OrbitControls
+            makeDefault
+            target={target}
+            enableZoom={false}
+            enablePan={false}
+            autoRotate={play}
+            autoRotateSpeed={2.2}
+            enableDamping
+            dampingFactor={0.08}
+            minPolarAngle={0.4}
+            maxPolarAngle={Math.PI / 2 + 0.15}
+          />
+        )}
       </Canvas>
     </div>
   )

@@ -57,6 +57,8 @@ export interface Exercise {
   equipment: string
   /** 难度 */
   difficulty: Difficulty
+  /** 练习类别，动作库里单独筛选 */
+  style?: '瑜伽'
   /** 一句话简介 */
   description: string
   /** 动作要点 */
@@ -86,4 +88,6 @@ export interface Exercise {
    * 缺省取关键帧列表的中间一帧，再缺省取 0.4。
    */
   posterAt?: number
+  /** 封面机位角度微调（度）。缺省按姿势自动选：贴地动作偏侧面，站姿 3/4 前侧 */
+  posterView?: { azimuth?: number; elevation?: number }
 }

@@ -31,6 +31,11 @@ export interface MotionPose {
 export interface MotionSegment {
   tempo?: number
   hold?: number
+  /**
+   * 只缓入（in）、只缓出（out）或匀速（linear），设置后忽略 tempo。
+   * in → linear… → out 串起来时中间姿势不停顿；in/out 段末速度是同距离匀速段的 2 倍，时长按 2:1 配
+   */
+  ease?: 'in' | 'out' | 'linear'
 }
 
 export interface MotionDef {
@@ -629,6 +634,289 @@ const GM_ARCH = merge(
   }),
 )
 
+// ---------- 瑜伽 ----------
+/**
+ * 俯身体式（plant = hands）的髋部朝向。倾角最终由双手和脚尖着地决定，
+ * 这里填接近最终的值，否则绕手转动可能选到另一个解（下犬式会翻过去）
+ */
+const pitch = (x: number): Pick<MotionPose, 'hipsRot'> => ({ hipsRot: [x, 0, 0] })
+
+/** 四点跪：腕在肩正下方、膝在髋正下方，脊柱中立，脚背贴地 */
+const YOGA_TABLE = both({
+  LeftUpLeg: [-80, 0, 2],
+  LeftLeg: [83, 0, 0],
+  LeftFoot: [55, 0, 0],
+  LeftToeBase: [-10, 0, 0],
+  LeftArm: [-81, -33, -89],
+  LeftForeArm: [0, -3, 0],
+  LeftHand: [57, 1, 89],
+  Spine: [1, 0, 0],
+  Neck: [-14, 0, 0],
+})
+/** 牛式：骨盆前倾、腰胸椎依次下沉，抬头看斜前方，手膝不动 */
+const YOGA_COW = both({
+  LeftUpLeg: [-101, 0, 2],
+  LeftLeg: [89, 0, 0],
+  LeftFoot: [50, 0, 0],
+  LeftToeBase: [-10, 0, 0],
+  LeftArm: [-70, -24, -89],
+  LeftForeArm: [0, -3, 0],
+  LeftHand: [66, 1, 82],
+  Spine: [-16, 0, 0],
+  Spine1: [-12, 0, 0],
+  Spine2: [-6, 0, 0],
+  Neck: [-16, 0, 0],
+  Head: [-8, 0, 0],
+})
+/** 猫式：骨盆后倾、整条脊柱向上拱起，低头看肚脐，手膝不动 */
+const YOGA_CAT = both({
+  LeftUpLeg: [-64, 0, 2],
+  LeftLeg: [89, 0, 0],
+  LeftFoot: [49, 0, 0],
+  LeftToeBase: [-10, 0, 0],
+  LeftArm: [-107, -41, -89],
+  LeftForeArm: [0, -3, 0],
+  LeftHand: [49, 2, 87],
+  Spine: [16, 0, 0],
+  Spine1: [16, 0, 0],
+  Spine2: [12, 0, 0],
+  Neck: [26, 0, 0],
+  Head: [14, 0, 0],
+})
+/** 四点跪 ↔ 牛式 / 猫式的中点：插值时膝盖会离开原位，补上手膝不动的中间姿势 */
+const YOGA_TABLE_COW = both({
+  LeftUpLeg: [-91, 0, 2],
+  LeftLeg: [89, 0, 0],
+  LeftFoot: [47, 0, 0],
+  LeftToeBase: [-17, 0, 0],
+  LeftArm: [-75, -29, -89],
+  LeftForeArm: [0, -3, 0],
+  LeftHand: [61, 1, 86],
+  Spine: [-8, 0, 0],
+  Spine1: [-6, 0, 0],
+  Spine2: [-3, 0, 0],
+  Neck: [-15, 0, 0],
+  Head: [-4, 0, 0],
+})
+const YOGA_CAT_TABLE = both({
+  LeftUpLeg: [-72, 0, 2],
+  LeftLeg: [88, 0, 0],
+  LeftFoot: [46, 0, 0],
+  LeftToeBase: [-17, 0, 0],
+  LeftArm: [-93, -37, -89],
+  LeftForeArm: [0, -3, 0],
+  LeftHand: [53, 1, 89],
+  Spine: [8, 0, 0],
+  Spine1: [8, 0, 0],
+  Spine2: [6, 0, 0],
+  Neck: [6, 0, 0],
+  Head: [7, 0, 0],
+})
+/** 婴儿式起始：四点跪，双手比肩稍向前，正好落在婴儿式的手位 */
+const YOGA_TABLE_REACH = both({
+  LeftUpLeg: [-84, 0, 2],
+  LeftLeg: [86, 0, 0],
+  LeftFoot: [53, 0, 0],
+  LeftToeBase: [-10, 0, 0],
+  LeftArm: [-94, -34, -88],
+  LeftForeArm: [0, -3, 0],
+  LeftHand: [57, 0, 75],
+  Spine1: [-1, 0, 0],
+  Spine2: [-1, 0, 0],
+  Neck: [-6, 0, 0],
+  Head: [-7, 0, 0],
+})
+/** 婴儿式：膝盖贴地、臀部坐向脚跟、胸腹落在大腿上、额头点地，双臂前伸掌心贴地 */
+const YOGA_CHILD = both({
+  LeftUpLeg: [-156, 0, 2],
+  LeftLeg: [146, 0, 0],
+  LeftFoot: [70, 0, 0],
+  LeftToeBase: [-10, 0, 0],
+  LeftArm: [-180, -49, -87],
+  LeftForeArm: [0, -3, 0],
+  LeftHand: [41, 1, 20],
+  Spine: [-5, 0, 0],
+  Spine1: [6, 0, 0],
+  Spine2: [23, 0, 0],
+  Neck: [14, 0, 0],
+  Head: [-30, 0, 0],
+})
+/** 臀部后坐到一半：膝盖仍贴地 */
+const YOGA_CHILD_MID = both({
+  LeftUpLeg: [-121, 0, 2],
+  LeftLeg: [119, 0, 0],
+  LeftFoot: [57, 0, 0],
+  LeftToeBase: [-19, 0, 0],
+  LeftArm: [-137, -41, -88],
+  LeftForeArm: [0, -3, 0],
+  LeftHand: [49, 1, 48],
+  Spine: [-3, 0, 0],
+  Spine1: [3, 0, 0],
+  Spine2: [11, 0, 0],
+  Neck: [4, 0, 0],
+  Head: [-19, 0, 0],
+})
+/** 下犬式起始：四点跪勾脚尖，手放在肩稍前方（与下犬式手脚距离一致） */
+const YOGA_DOG_START = both({
+  LeftUpLeg: [-79, 0, 2],
+  LeftLeg: [92, 0, 0],
+  LeftFoot: [-14, 0, 0],
+  LeftToeBase: [-73, 0, 0],
+  LeftArm: [-92, -34, -88],
+  LeftForeArm: [0, -3, 0],
+  LeftHand: [57, 2, 78],
+  Spine2: [-1, 0, 0],
+  Neck: [-3, 0, 0],
+  Head: [-10, 0, 0],
+})
+/** 下犬式：倒 V，腕-肩-髋一线、背部伸长，腿伸直，脚跟沉向地面，头在两臂之间 */
+const YOGA_DOG = both({
+  LeftUpLeg: [-104, 0, 2],
+  LeftLeg: [0, 0, 0],
+  LeftFoot: [-19, 0, 0],
+  LeftToeBase: [-17, 0, 0],
+  LeftArm: [-173, -41, -86],
+  LeftForeArm: [0, -3, 0],
+  LeftHand: [52, -2, 53],
+  Spine: [1, 0, 0],
+  Spine1: [1, 0, 0],
+  Spine2: [1, 0, 0],
+  Neck: [-10, 0, 0],
+  Head: [-7, 0, 0],
+})
+/** 膝盖离地、臀部上推到一半，脚尖不动 */
+const YOGA_DOG_MID = both({
+  LeftUpLeg: [-99, 0, 2],
+  LeftLeg: [43, 0, 0],
+  LeftFoot: [-18, 0, 0],
+  LeftToeBase: [-41, 0, 0],
+  LeftArm: [-130, -36, -87],
+  LeftForeArm: [0, -3, 0],
+  LeftHand: [54, -1, 70],
+  Neck: [-6, 0, 0],
+  Head: [-8, 0, 0],
+})
+/** 俯卧：额头点地，双手在胸两侧、肘尖朝上贴身，脚背贴地 */
+const YOGA_PRONE_FLAT = both({
+  LeftUpLeg: [-5, 0, 3],
+  LeftFoot: [71, 0, 0],
+  LeftToeBase: [-30, 0, 0],
+  LeftArm: [34, 2, -86],
+  LeftForeArm: [0, -135, 0],
+  LeftHand: [86, 1, 77],
+  Spine1: [1, 0, 0],
+  Neck: [4, 0, 0],
+  Head: [2, 0, 0],
+})
+/** 眼镜蛇式：耻骨大腿脚背贴地，腰、下胸、上胸均匀后伸抬胸，手腕在肩正下方，屈肘夹肋指向后方，颈部延长 */
+const YOGA_COBRA = both({
+  LeftUpLeg: [1, 0, 3],
+  LeftFoot: [71, 0, 0],
+  LeftToeBase: [-30, 0, 0],
+  LeftArm: [33, 1, -88],
+  LeftForeArm: [0, -113, 0],
+  LeftHand: [88, 0, 38],
+  Spine: [-19, 0, 0],
+  Spine1: [-19, 0, 0],
+  Spine2: [-16, 0, 0],
+  Neck: [-27, 0, 0],
+  Head: [27, 0, 0],
+})
+
+// 站立体式左脚在前：左脚朝 +x 外转 90°，右脚内扣 15°，前脚跟与后脚足弓对齐，脚掌放平。
+// 起止姿势与体式站距相同，过渡时双脚不滑动。双脚同时着地对腿部角度很敏感，保留一位小数。
+
+/** 战士二式起始：双脚分开约 1.35 m，双腿伸直，手臂垂于体侧 */
+const WARRIOR_START: Record<string, EulerDeg> = {
+  LeftUpLeg: [-74.6, 43.4, 68.6],
+  RightUpLeg: [13.4, -0.8, -39.3],
+  Spine: [0, -4.9, 0],
+  Spine1: [0, -4.9, 0],
+  Spine2: [0, -4.9, 0],
+  LeftFoot: [44.1, 0.4, -0.2],
+  RightFoot: [-11, -7.8, 39],
+  LeftArm: [0, 0, -82],
+  RightArm: [0, 0, 82],
+}
+const WARRIOR_STRAIGHT_AT: Pick<MotionPose, 'hipsRot'> = { hipsRot: [0, 14.9, -0.3] }
+/** 双臂侧平举到肩高，掌心向下 */
+const WARRIOR_ARMS = merge(WARRIOR_START, { LeftArm: [0, 0, 0], RightArm: [0, 0, 0] })
+/** 战士二式：前膝屈 90° 在脚踝正上方对准脚尖，大腿平行地面，后腿伸直，躯干直立居中，目视前手中指 */
+const WARRIOR_TWO: Record<string, EulerDeg> = {
+  LeftUpLeg: [-89.2, 1.9, 63.9],
+  LeftLeg: [83.8, 0, 0],
+  RightUpLeg: [20.6, -4.5, -53.5],
+  Spine: [0, -6.5, 0],
+  Spine1: [0, -6.5, 0],
+  Spine2: [0, -6.5, 0],
+  LeftFoot: [3.8, 6.3, 0],
+  RightFoot: [-12.1, -16.9, 53.6],
+  LeftArm: [0, 0, 0],
+  RightArm: [0, 0, 0],
+  Neck: [0, 45, 0],
+  Head: [0, 45, 0],
+}
+const WARRIOR_TWO_AT: Pick<MotionPose, 'hipsRot'> = { hipsRot: [0.2, 19.8, -0.4] }
+/** 屈膝到一半，双脚不动 */
+const WARRIOR_MID: Record<string, EulerDeg> = {
+  LeftUpLeg: [-81.2, 23.5, 66.6],
+  LeftLeg: [42.9, 0, 0],
+  RightUpLeg: [15.9, -1.7, -44.4],
+  Spine: [0, -5.7, 0],
+  Spine1: [0, -5.7, 0],
+  Spine2: [0, -5.7, 0],
+  LeftFoot: [22.4, 3.1, 0.9],
+  RightFoot: [-10.3, -12.2, 43.6],
+  LeftArm: [0, 0, 0],
+  RightArm: [0, 0, 0],
+  Neck: [0, 22.5, 0],
+  Head: [0, 22.5, 0],
+}
+const WARRIOR_MID_AT: Pick<MotionPose, 'hipsRot'> = { hipsRot: [-0.1, 18.2, 0.4] }
+/** 三角式起始：双脚分开约 1.05 m，双腿伸直，双臂侧平举 */
+const TRIANGLE_START: Record<string, EulerDeg> = {
+  LeftUpLeg: [-67.2, 54.8, 62.9],
+  RightUpLeg: [9, -0.3, -28],
+  Spine: [0, -4.9, 0],
+  Spine1: [0, -4.9, 0],
+  Spine2: [0, -4.9, 0],
+  LeftFoot: [31.9, 0.4, -0.1],
+  RightFoot: [-8.3, -3.9, 27.9],
+  LeftArm: [0, 0, 0],
+  RightArm: [0, 0, 0],
+}
+const TRIANGLE_START_AT: Pick<MotionPose, 'hipsRot'> = { hipsRot: [0.1, 14.9, -0.2] }
+/** 三角式：双腿伸直，从髋向前腿侧屈，躯干两侧等长，左手扶小腿下段，两臂成竖直一线，胸打开，看上方手 */
+const TRIANGLE: Record<string, EulerDeg> = {
+  LeftUpLeg: [-110.2, -12.7, 47.1],
+  RightUpLeg: [-13.6, -22.6, 35.3],
+  Spine: [0.9, -15, -5.7],
+  Spine1: [0.9, -15, -5.7],
+  Spine2: [0.9, -15, -5.7],
+  LeftFoot: [43.2, -2, -2.2],
+  RightFoot: [-15.5, -6.6, 22.8],
+  LeftArm: [-90, 0, 0],
+  RightArm: [-90, 0, 0],
+  Neck: [4.4, -44.8, 7.6],
+  Head: [4.4, -44.8, 7.6],
+}
+const TRIANGLE_AT: Pick<MotionPose, 'hipsRot'> = { hipsRot: [43.9, 10.3, -71.9] }
+/** 侧屈到一半，双脚不动 */
+const TRIANGLE_MID: Record<string, EulerDeg> = {
+  LeftUpLeg: [-87.6, 20, 59.6],
+  RightUpLeg: [-7.2, -11.8, 3.9],
+  Spine: [0.4, -10, -2.8],
+  Spine1: [0.4, -10, -2.8],
+  Spine2: [0.4, -10, -2.8],
+  LeftFoot: [37.7, 0.7, 0.7],
+  RightFoot: [-8.8, -1.9, 24.9],
+  LeftArm: [-45, 0, 0],
+  RightArm: [-45, 0, 0],
+  Neck: [1.2, -22.5, 3.1],
+  Head: [1.2, -22.5, 3.1],
+}
+const TRIANGLE_MID_AT: Pick<MotionPose, 'hipsRot'> = { hipsRot: [22, 18.8, -35.4] }
+
 
 export const MOTIONS: Record<string, MotionDef> = {
   // ---------- 对比模式：标准动作（供双画布"标准"侧） ----------
@@ -1093,6 +1381,97 @@ export const MOTIONS: Record<string, MotionDef> = {
       pose(2.88, swapSides(SIDE_LUNGE_TOUCH_LEFT), swapPlace(SIDE_LUNGE_TOUCH_LEFT_AT)),
       pose(3.02, swapSides(SIDE_LUNGE_STEP_LEFT), swapPlace(SIDE_LUNGE_STEP_LEFT_AT)),
       pose(3.2, SIDE_LUNGE_STAND, SIDE_LUNGE_STAND_AT),
+    ],
+  },
+
+  // ---------- 瑜伽：进入 → 停留 → 退出，配合呼吸放慢 ----------
+  /** 吸气塌腰抬头成牛式，呼气拱背低头成猫式 */
+  'cat-cow': {
+    duration: 6,
+    plant: 'hands',
+    segments: [
+      { ease: 'in' }, { ease: 'out' }, {},
+      { ease: 'in' }, { ease: 'linear' }, { ease: 'linear' }, { ease: 'out' }, {},
+      { ease: 'in' }, { ease: 'out' },
+    ],
+    poses: [
+      pose(0, YOGA_TABLE, pitch(83)),
+      pose(0.75, YOGA_TABLE_COW, pitch(91)),
+      pose(1.5, YOGA_COW, pitch(99.5)),
+      pose(2.1, YOGA_COW, pitch(99.5)),
+      pose(2.7, YOGA_TABLE_COW, pitch(91)),
+      pose(3.0, YOGA_TABLE, pitch(83)),
+      pose(3.3, YOGA_CAT_TABLE, pitch(73.4)),
+      pose(3.9, YOGA_CAT, pitch(63)),
+      pose(4.5, YOGA_CAT, pitch(63)),
+      pose(5.25, YOGA_CAT_TABLE, pitch(73.4)),
+      pose(6, YOGA_TABLE, pitch(83)),
+    ],
+  },
+  'child-pose': {
+    duration: 7,
+    plant: 'hands',
+    segments: [{ ease: 'in' }, { ease: 'out' }, {}, { ease: 'in' }, { ease: 'out' }],
+    poses: [
+      pose(0, YOGA_TABLE_REACH, pitch(85)),
+      pose(1.1, YOGA_CHILD_MID, pitch(88.5)),
+      pose(2.2, YOGA_CHILD, pitch(90.8)),
+      pose(5, YOGA_CHILD, pitch(90.8)),
+      pose(6, YOGA_CHILD_MID, pitch(88.5)),
+      pose(7, YOGA_TABLE_REACH, pitch(85)),
+    ],
+  },
+  'downward-dog': {
+    duration: 7,
+    plant: 'hands',
+    segments: [{ ease: 'in' }, { ease: 'out' }, {}, { ease: 'in' }, { ease: 'out' }],
+    poses: [
+      pose(0, YOGA_DOG_START, pitch(83)),
+      pose(1, YOGA_DOG_MID, pitch(116.3)),
+      pose(2, YOGA_DOG, pitch(137.7)),
+      pose(5, YOGA_DOG, pitch(137.7)),
+      pose(6, YOGA_DOG_MID, pitch(116.3)),
+      pose(7, YOGA_DOG_START, pitch(83)),
+    ],
+  },
+  cobra: {
+    duration: 7,
+    plant: 'hands',
+    segments: [{ tempo: 1.3 }, {}, { tempo: 1.3 }],
+    poses: [
+      pose(0, YOGA_PRONE_FLAT, pitch(88.3)),
+      pose(2.2, YOGA_COBRA, pitch(82.3)),
+      pose(4.8, YOGA_COBRA, pitch(82.3)),
+      pose(7, YOGA_PRONE_FLAT, pitch(88.3)),
+    ],
+  },
+  /** 双臂侧平举 → 屈前膝、转头看前手 → 停留 → 伸膝 → 放手 */
+  'warrior-two': {
+    duration: 8,
+    plant: 'feet',
+    segments: [{}, { ease: 'in' }, { ease: 'out' }, {}, { ease: 'in' }, { ease: 'out' }, {}],
+    poses: [
+      pose(0, WARRIOR_START, WARRIOR_STRAIGHT_AT),
+      pose(1.2, WARRIOR_ARMS, WARRIOR_STRAIGHT_AT),
+      pose(2.0, WARRIOR_MID, WARRIOR_MID_AT),
+      pose(2.8, WARRIOR_TWO, WARRIOR_TWO_AT),
+      pose(5.4, WARRIOR_TWO, WARRIOR_TWO_AT),
+      pose(6.1, WARRIOR_MID, WARRIOR_MID_AT),
+      pose(6.8, WARRIOR_ARMS, WARRIOR_STRAIGHT_AT),
+      pose(8, WARRIOR_START, WARRIOR_STRAIGHT_AT),
+    ],
+  },
+  triangle: {
+    duration: 7,
+    plant: 'feet',
+    segments: [{ ease: 'in' }, { ease: 'out' }, {}, { ease: 'in' }, { ease: 'out' }],
+    poses: [
+      pose(0, TRIANGLE_START, TRIANGLE_START_AT),
+      pose(1.1, TRIANGLE_MID, TRIANGLE_MID_AT),
+      pose(2.2, TRIANGLE, TRIANGLE_AT),
+      pose(5, TRIANGLE, TRIANGLE_AT),
+      pose(6, TRIANGLE_MID, TRIANGLE_MID_AT),
+      pose(7, TRIANGLE_START, TRIANGLE_START_AT),
     ],
   },
 }

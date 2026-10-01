@@ -1,26 +1,20 @@
-import { Component, Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { Canvas, useThree } from '@react-three/fiber'
+import { Component, Suspense, useCallback, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { ContactShadows } from '@react-three/drei'
+import { Group, PerspectiveCamera } from 'three'
 import CharacterModel from '../components/CharacterModel'
 import { StudioLights } from '../components/studioLook'
-import { exercises } from '../data/exercises'
+import { exercises as allExercises } from '../data/exercises'
 import { GROUP_COLOR } from '../lib/groupStyle'
+import { COVER_FOV, COVER_H, COVER_W, frameCover, posterAtOf, type CoverView } from '../lib/posterFrame'
 import type { Exercise } from '../types'
 
 /**
  * 海报渲染工作台（dev 专用，隐藏路由 /poster-studio）：
- * 逐个加载动作模型 → 钉在招牌姿势 → 离屏截图（透明底 + 肌群色轮廓光）
+ * 逐个加载动作模型 → 钉在招牌姿势 → 按统一画幅贴地取景 → 离屏截图
  * → POST /__save-poster 保存到 public/posters/。
  * 跑完后卡片首图全部成为静态资产，运行时零 3D 成本。
  */
-
-/** 招牌姿势：显式 posterAt > 关键帧中间一帧 > 0.4 */
-function posterAtOf(e: Exercise): number {
-  if (e.posterAt != null) return e.posterAt
-  const kfs = e.keyframes ?? []
-  if (kfs.length > 0) return kfs[Math.min(Math.floor(kfs.length / 2), kfs.length - 1)].at
-  return 0.4
-}
 
 /** 模型加载失败兜底：跳过该动作，不让整条流水线崩掉 */
 class ShotErrorBoundary extends Component<{ onError: () => void; children: ReactNode }, { failed: boolean }> {
@@ -39,6 +33,44 @@ class ShotErrorBoundary extends Component<{ onError: () => void; children: React
   }
 }
 
+/** 姿势钉住后统一取景，再等一帧让这帧画完，然后截图 */
+function PosterCapture({
+  armed,
+  root,
+  view,
+  onCapture,
+}: {
+  armed: boolean
+  root: RefObject<Group>
+  view?: CoverView
+  onCapture: (dataUrl: string) => void
+}) {
+  const gl = useThree((s) => s.gl)
+  const camera = useThree((s) => s.camera)
+  const size = useThree((s) => s.size)
+  const step = useRef(0)
+
+  useFrame(() => {
+    if (!armed || step.current < 0 || !root.current) return
+    step.current += 1
+    // 前两帧留给 mixer 把骨骼摆到招牌姿势
+    if (step.current === 3) {
+      frameCover(camera as PerspectiveCamera, root.current, size.width / Math.max(size.height, 1), view)
+    }
+    if (step.current < 5) return
+    step.current = -1
+    let url: string
+    try {
+      url = gl.domElement.toDataURL('image/webp', 0.92)
+    } catch {
+      url = gl.domElement.toDataURL('image/png')
+    }
+    onCapture(url)
+  })
+
+  return null
+}
+
 function PosterShot({
   exercise,
   onCapture,
@@ -48,16 +80,14 @@ function PosterShot({
   onCapture: (dataUrl: string) => void
   onError: () => void
 }) {
-  const gl = useThree((s) => s.gl)
-  const camera = useThree((s) => s.camera)
   const [duration, setDuration] = useState(0)
+  const root = useRef<Group>(null)
   /**
    * onClips 触发挂载后的重渲染（与 ModelViewer 同一模式）：
    * useAnimations 的 actions 是惰性 getter，首次渲染时 group ref 尚为 null，
    * 不重渲染一次 action 永远是 null（模型停在 T-pose、onDuration 也不会触发）。
    */
   const [, setClipNames] = useState<string[]>([])
-  const floor = exercise.camera === 'floor'
 
   const onDuration = useCallback(
     (d: number) => {
@@ -67,70 +97,38 @@ function PosterShot({
     [exercise.id],
   )
 
-  // 统一 3/4 侧视角；贴地动作视线放低
-  useEffect(() => {
-    camera.position.set(2.35, floor ? 1.7 : 1.25, 2.75)
-    camera.lookAt(0, floor ? 0.42 : 0.9, 0)
-  }, [camera, floor])
-
-  // 时长已知 + 姿势钉住后，等淡入完成（fadeIn 0.25s 由 mixer 时钟驱动）
-  // 再等两帧确保像素上屏，然后截图
-  useEffect(() => {
-    if (duration <= 0) return
-    let n = 2
-    let raf = 0
-    const timer = setTimeout(() => {
-      const tick = () => {
-        n -= 1
-        if (n > 0) {
-          raf = requestAnimationFrame(tick)
-          return
-        }
-        let url: string
-        try {
-          url = gl.domElement.toDataURL('image/webp', 0.92)
-        } catch {
-          url = gl.domElement.toDataURL('image/png')
-        }
-        console.debug('[poster] capture', exercise.id, url.length)
-        onCapture(url)
-      }
-      raf = requestAnimationFrame(tick)
-    }, 700)
-    return () => {
-      clearTimeout(timer)
-      cancelAnimationFrame(raf)
-    }
-  }, [duration, gl, onCapture])
-
   return (
     <>
       <StudioLights accent={GROUP_COLOR[exercise.muscle]} shadows={false} />
       <ShotErrorBoundary onError={onError}>
         <Suspense fallback={null}>
-          <CharacterModel
-            url={exercise.model.url}
-            clip={exercise.model.clip}
-            motionId={exercise.generated ? exercise.model.clip : undefined}
-            muscle={exercise.muscle}
-            accent={GROUP_COLOR[exercise.muscle]}
-            playing={false}
-            speed={1}
-            time={duration > 0 ? posterAtOf(exercise) * duration : undefined}
-            onClips={setClipNames}
-            onDuration={onDuration}
-          />
+          <group ref={root}>
+            <CharacterModel
+              url={exercise.model.url}
+              clip={exercise.model.clip}
+              motionId={exercise.generated ? exercise.model.clip : undefined}
+              muscle={exercise.muscle}
+              accent={GROUP_COLOR[exercise.muscle]}
+              playing={false}
+              blend={0}
+              speed={1}
+              time={duration > 0 ? posterAtOf(exercise) * duration : undefined}
+              onClips={setClipNames}
+              onDuration={onDuration}
+            />
+          </group>
         </Suspense>
       </ShotErrorBoundary>
       <ContactShadows
         position={[0, 0, 0]}
-        opacity={0.42}
+        opacity={0.45}
         scale={5}
         blur={2.4}
         far={3}
         resolution={256}
         color="#000000"
       />
+      <PosterCapture armed={duration > 0} root={root} view={exercise.posterView} onCapture={onCapture} />
     </>
   )
 }
@@ -142,7 +140,16 @@ interface LogItem {
   file?: string
 }
 
+/** ?only=瑜伽 或 ?only=cobra,triangle：只重渲染指定类别 / 动作 */
+function pickExercises(): Exercise[] {
+  const only = new URLSearchParams(window.location.search).get('only')
+  if (!only) return allExercises
+  const keys = new Set(only.split(','))
+  return allExercises.filter((e) => keys.has(e.id) || (e.style != null && keys.has(e.style)))
+}
+
 export default function PosterStudio() {
+  const [exercises] = useState(pickExercises)
   const [idx, setIdx] = useState(exercises.length) // 初始停在"未开始"
   const [log, setLog] = useState<LogItem[]>([])
   const [running, setRunning] = useState(false)
@@ -150,6 +157,7 @@ export default function PosterStudio() {
   const inflightRef = useRef<string | null>(null)
 
   const current = idx < exercises.length ? exercises[idx] : null
+  const [shotW, shotH] = [COVER_W, COVER_H]
   const total = exercises.length
   const done = Math.min(idx, total)
 
@@ -205,8 +213,9 @@ export default function PosterStudio() {
     <div className="page">
       <h1 style={{ fontSize: 26, marginBottom: 6 }}>海报渲染工作台</h1>
       <p style={{ color: 'var(--muted)', fontSize: 14, lineHeight: 1.7, margin: '0 0 18px' }}>
-        逐个加载动作模型，钉在招牌姿势离屏截图（640×800 透明底 + 肌群色轮廓光），保存到{' '}
+        逐个加载动作模型，钉在招牌姿势，按统一 3:2 画幅贴地取景后离屏截图（{COVER_W}×{COVER_H}，透明底），保存到{' '}
         <code>public/posters/</code>。跑完后卡片首图即静态资产，运行时零 3D 成本。
+        地址加 <code>?only=瑜伽</code> 或 <code>?only=cobra,triangle</code> 只重渲染指定动作。
         截图透明底可透过 CSS 舞台背景看到聚光效果。
       </p>
 
@@ -239,15 +248,15 @@ export default function PosterStudio() {
       </div>
 
       <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-        {/* 渲染画布：640×800 缓冲区，视觉上缩放一半便于观察 */}
+        {/* 渲染画布：960×640 缓冲区，视觉上缩放一半便于观察 */}
         <div
           style={{
-            width: 640,
-            height: 800,
+            width: shotW,
+            height: shotH,
             flex: 'none',
             transform: 'scale(0.5)',
             transformOrigin: 'top left',
-            marginBottom: -400,
+            marginBottom: -shotH / 2,
             borderRadius: 16,
             border: '1px solid var(--border)',
             overflow: 'hidden',
@@ -257,9 +266,11 @@ export default function PosterStudio() {
         >
           {running && current && (
             <Canvas
+              key={`${shotW}x${shotH}`}
               dpr={1}
+              resize={{ offsetSize: true }}
               frameloop="always"
-              camera={{ position: [2.35, 1.25, 2.75], fov: 34, near: 0.1, far: 60 }}
+              camera={{ position: [2.4, 1.3, 2.7], fov: COVER_FOV, near: 0.05, far: 80 }}
               gl={{ antialias: true, alpha: true, preserveDrawingBuffer: true }}
               onCreated={({ gl }) => gl.setClearColor('#000000', 0)}
             >

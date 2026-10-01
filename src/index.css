@@ -2333,44 +2333,57 @@ main {
   opacity: 1;
 }
 
-/* 地面椭圆光斑（肌群色） */
+/*
+ * 地面椭圆光斑（肌群色）：中心压在封面基线上（舞台高度 84%，与 lib/posterFrame.ts 的 COVER_BASELINE 一致），
+ * 人物脚下正好踩着它。悬停只变亮、不变形，避免和人物产生相对位移。
+ */
 .card-floor {
   position: absolute;
-  bottom: 9px;
+  top: 84%;
   left: 50%;
-  width: 62%;
-  height: 22px;
-  transform: translateX(-50%);
-  background: radial-gradient(50% 100% at 50% 50%, color-mix(in srgb, var(--grp) 40%, transparent), transparent 72%);
-  filter: blur(3px);
-  transition: all 0.3s;
+  width: min(78%, 300px);
+  height: 30px;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(50% 50% at 50% 50%, color-mix(in srgb, var(--grp) 34%, transparent), transparent 70%);
+  filter: blur(2px);
+  opacity: 0.85;
+  transition: opacity 0.3s;
   pointer-events: none;
 }
 
 .card-v2:hover .card-floor {
-  width: 72%;
-  background: radial-gradient(50% 100% at 50% 50%, color-mix(in srgb, var(--grp) 60%, transparent), transparent 72%);
+  opacity: 1;
 }
 
+/*
+ * 封面统一 3:2、按舞台高度铺满并水平居中，多出来的两侧被裁掉。
+ * 悬停实时画布用同样的竖向视角和机位，二者在任何卡片宽度下都逐像素重合，交叉淡入时人物不跳。
+ */
 .card-poster {
-  position: relative;
+  position: absolute;
+  top: 0;
+  left: 50%;
   z-index: 1;
-  height: 88%;
-  max-width: 94%;
-  object-fit: contain;
-  transition:
-    transform 0.35s cubic-bezier(0.22, 0.61, 0.36, 1),
-    opacity 0.32s ease;
-}
-
-.card-v2:hover .card-poster {
-  transform: translateY(-5px) scale(1.03) rotate(-0.5deg);
+  height: 100%;
+  width: auto;
+  max-width: none;
+  transform: translateX(-50%);
+  pointer-events: none;
+  transition: opacity 0.32s ease;
 }
 
 /* 实时模型淡入后收起海报。画布是透明的，不收的话两层人物会错位叠成重影 */
 .card-stage:has(.card-3dlayer.on) .card-poster {
   opacity: 0;
-  transform: none;
+}
+
+/* 角标移到左上，和右上的 LIVE 胶囊对称，舞台下半部分整条留给人物和地面 */
+.card-v2 .card-gen-badge,
+.card-v2 .card-ph-badge {
+  top: 10px;
+  bottom: auto;
+  z-index: 3;
+  backdrop-filter: blur(6px);
 }
 
 /* 降级：海报缺失时回到渐变 + 图标（保底视觉） */

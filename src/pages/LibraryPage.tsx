@@ -14,6 +14,7 @@ export default function LibraryPage() {
   const [q, setQ] = useState('')
   /** 居家自重专区：只看无器械动作 */
   const [homeOnly, setHomeOnly] = useState(false)
+  const [yogaOnly, setYogaOnly] = useState(false)
 
   /** 各肌群动作数：筛选 chip 角标 */
   const counts = useMemo(() => {
@@ -28,9 +29,10 @@ export default function LibraryPage() {
       (e) =>
         (group === '全部' || e.muscle === group) &&
         (!homeOnly || e.equipment.includes('自重')) &&
+        (!yogaOnly || e.style === '瑜伽') &&
         (kw === '' || e.name.includes(kw) || e.nameEn.toLowerCase().includes(kw)),
     )
-  }, [group, q, homeOnly])
+  }, [group, q, homeOnly, yogaOnly])
 
   return (
     <div className="page">
@@ -67,6 +69,14 @@ export default function LibraryPage() {
               <span className="cnt">
                 {exercises.filter((e) => e.equipment.includes('自重')).length}
               </span>
+            </button>
+            <button
+              className={`chip home ${yogaOnly ? 'active' : ''}`}
+              onClick={() => setYogaOnly((y) => !y)}
+              title="只看瑜伽体式"
+            >
+              瑜伽
+              <span className="cnt">{exercises.filter((e) => e.style === '瑜伽').length}</span>
             </button>
           </div>
           <div className="search-wrap">
