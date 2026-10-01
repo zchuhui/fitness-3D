@@ -60,21 +60,76 @@ if (synth) {
 }
 
 let lastSpeakAt = 0
+let countToken = 0
+let pendingTimer = 0
+
+function clearPending() {
+  if (!pendingTimer) return
+  window.clearTimeout(pendingTimer)
+  pendingTimer = 0
+}
+
+function utterance(text: string, rate: number) {
+  const u = new SpeechSynthesisUtterance(text)
+  const v = pickVoice()
+  if (v) u.voice = v
+  u.lang = 'zh-CN'
+  u.rate = rate
+  return u
+}
+
+/** 把次数说成报数用的中文：1→一，11→十一，20→二十 */
+function countText(n: number): string {
+  const d = ['', '一', '二', '三', '四', '五', '六', '七', '八', '九']
+  if (n <= 0 || n >= 100) return ''
+  if (n < 10) return d[n]
+  if (n === 10) return '十'
+  if (n < 20) return `十${d[n - 10]}`
+  const tens = Math.floor(n / 10)
+  const ones = n % 10
+  return `${d[tens]}十${ones ? d[ones] : ''}`
+}
 
 /** 播报一句短语；新播报前取消上一句，避免快速切换时排队堆积 */
 export function speak(text: string) {
   if (!voiceOn || !synth) return
   try {
+    clearPending()
     synth.cancel()
-    const u = new SpeechSynthesisUtterance(text)
-    const v = pickVoice()
-    if (v) u.voice = v
-    u.lang = 'zh-CN'
-    u.rate = 1.05
-    synth.speak(u)
+    synth.speak(utterance(text, 1.05))
     lastSpeakAt = Date.now()
   } catch {
     // 极老浏览器 / 语音引擎异常：静默降级为纯音效
+  }
+}
+
+/**
+ * 跟练报数（一、二、三…）。跟音效开关走，不看语音教练开关。
+ * 返回 false 表示这台设备说不出来，调用方可以退回提示音。
+ */
+export function speakCount(n: number): boolean {
+  if (!synth) return false
+  const text = countText(n)
+  if (!text) return false
+  try {
+    const token = ++countToken
+    clearPending()
+    synth.cancel()
+    const u = utterance(text, 1.15)
+    // cancel 后立刻 speak，部分浏览器会把这一句吞掉
+    pendingTimer = window.setTimeout(() => {
+      pendingTimer = 0
+      if (token !== countToken || !synth) return
+      try {
+        synth.speak(u)
+      } catch {
+        // 语音引擎中途失效：这一次就跳过
+      }
+    }, 40)
+    lastSpeakAt = Date.now()
+    return true
+  } catch {
+    return false
   }
 }
 

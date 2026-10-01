@@ -1,13 +1,12 @@
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { ContactShadows, Grid, Html, OrbitControls } from '@react-three/drei'
 import CharacterModel from './CharacterModel'
 import { StagePool, StudioLights } from './studioLook'
 import { GROUP_COLOR } from '../lib/groupStyle'
 import type { Exercise } from '../types'
-import { cueBeep, doneBeep, readyBeep, repBeep, tickBeep } from '../lib/beep'
-import { isSfxEnabled, setSfxEnabled } from '../lib/beep'
-import { canCheer, isVoiceEnabled, setVoiceEnabled, speak } from '../lib/coach'
+import { doneBeep, isSfxEnabled, readyBeep, repBeep, setSfxEnabled, tickBeep } from '../lib/beep'
+import { canCheer, isVoiceEnabled, setVoiceEnabled, speak, speakCount } from '../lib/coach'
 import { pickCheer } from '../lib/cheer'
 
 /** 跟练舞台相机（低机位给卧姿动作） */
@@ -118,15 +117,12 @@ export default function FollowAlongPanel({
   const [speed, setSpeed] = useState(0.75)
   const timeRef = useRef(0)
   const prevTime = useRef(0)
+  /** 本组已完成次数（报数与画面同步，不依赖 setState 的滞后值） */
+  const repsRef = useRef(0)
+  /** 最后一次报数说完再播完成语，避免数字被立刻掐掉 */
+  const holdTimer = useRef(0)
   /** 本组鼓励触发标记（过半/冲刺/休息中段），每组重置，保证只触发一次 */
   const cheeredRef = useRef({ half: false, last: false, rest: false })
-  /** 当前剪辑时长（Stage 上报），发力点提示音据此换算 */
-  const [duration, setDuration] = useState(0)
-  /** 发力点（归一化时刻）：取 keyframes 里 0.2–0.6 之间的第一个（如深蹲底部） */
-  const cueNorm = useMemo(() => {
-    const kfs = (exercise.keyframes ?? []).filter((k) => k.at >= 0.2 && k.at <= 0.6)
-    return kfs[0]?.at ?? 0.4
-  }, [exercise.keyframes])
   /** 声音设置（音效 / 语音），localStorage 持久化 */
   const [sfxOn, setSfxOn] = useState(isSfxEnabled)
   const [voiceOn, setVoiceOn] = useState(isVoiceEnabled)
@@ -145,25 +141,35 @@ export default function FollowAlongPanel({
     [onFinish],
   )
 
-  /** 本组完成：进入休息或整体完成 */
-  const finishSet = useCallback(() => {
-    doneBeep()
+  /** 本组完成：进入休息或整体完成。holdAnnounce 时先把最后一次报数说完 */
+  const finishSet = useCallback((holdAnnounce = false) => {
+    const say = () => {
+      doneBeep()
+      if (setIndex + 1 >= (program?.sets ?? 1)) {
+        speak(`训练完成，共${program?.sets ?? setIndex + 1}组。${pickCheer('allDone')}`)
+      } else {
+        speak(`第${setIndex + 1}组完成，休息${program?.restSeconds ?? 60}秒。${pickCheer('setDone')}`)
+      }
+    }
     if (setIndex + 1 >= (program?.sets ?? 1)) {
       setPhase('done')
       reportDone(program?.sets ?? setIndex + 1)
-      speak(`训练完成，共${program?.sets ?? setIndex + 1}组。${pickCheer('allDone')}`)
     } else {
       setPhase('rest')
       setSecondsLeft(program?.restSeconds ?? 60)
-      speak(`第${setIndex + 1}组完成，休息${program?.restSeconds ?? 60}秒。${pickCheer('setDone')}`)
     }
+    window.clearTimeout(holdTimer.current)
+    if (holdAnnounce) holdTimer.current = window.setTimeout(say, 700)
+    else say()
   }, [setIndex, program, reportDone])
 
   const startNextSet = useCallback(() => {
+    window.clearTimeout(holdTimer.current)
     readyBeep()
     const next = setIndex + 1
     const finalSet = next + 1 >= (program?.sets ?? 1)
     setSetIndex(next)
+    repsRef.current = 0
     setReps(0)
     setSecondsLeft(program?.seconds ?? 0)
     setPhase('set')
@@ -172,8 +178,10 @@ export default function FollowAlongPanel({
   }, [setIndex, program, briefText])
 
   const start = useCallback(() => {
+    window.clearTimeout(holdTimer.current)
     reportedRef.current = false
     setSetIndex(0)
+    repsRef.current = 0
     setReps(0)
     setSecondsLeft(program?.seconds ?? 0)
     setPaused(false)
@@ -185,6 +193,7 @@ export default function FollowAlongPanel({
 
   /** 手动结束：按已完成组数上报 */
   const quit = useCallback(() => {
+    window.clearTimeout(holdTimer.current)
     const setsDone = phase === 'rest' ? setIndex + 1 : phase === 'set' ? setIndex + 1 : setIndex
     // 当前组算完成（用户主动确认本组次数够了/结束训练）
     setPhase('done')
@@ -193,33 +202,31 @@ export default function FollowAlongPanel({
     speak(`训练结束，共完成${setsDone}组。${pickCheer('allDone')}`)
   }, [phase, setIndex, reportDone])
 
-  // 计次类：检测模型循环回绕（time 从大跳回小）→ 完成 1 次；
-  // 同时检测穿越发力点（如深蹲底部）→ 低音提示"该发力了"
+  // 计次类：模型循环回绕（time 从大跳回小）= 完成 1 次，报「一、二、三…」
   useEffect(() => {
     if (phase !== 'set' || paused || isTimed || !program?.reps) return
-    const cueSec = duration > 0 ? cueNorm * duration : -1
     let raf = 0
     const loop = () => {
       const prev = prevTime.current
       const cur = timeRef.current
       if (prev > cur + 0.5) {
-        // 循环回绕：完成 1 次
-        setReps((r) => r + 1)
-        repBeep()
-      } else if (cueSec > 0 && prev < cueSec && cur >= cueSec) {
-        // 正向播放穿越发力点
-        cueBeep()
+        const next = repsRef.current + 1
+        repsRef.current = next
+        setReps(next)
+        if (isSfxEnabled() && !speakCount(next)) repBeep()
       }
       prevTime.current = cur
       raf = requestAnimationFrame(loop)
     }
     raf = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(raf)
-  }, [phase, paused, isTimed, program, duration, cueNorm])
+  }, [phase, paused, isTimed, program])
 
-  // 计次类：达到目标次数 → 本组完成
+  useEffect(() => () => window.clearTimeout(holdTimer.current), [])
+
+  // 计次类：达到目标次数 → 本组完成（等最后一次报数说完再播完成语）
   useEffect(() => {
-    if (phase === 'set' && !isTimed && program?.reps && reps >= program.reps) finishSet()
+    if (phase === 'set' && !isTimed && program?.reps && reps >= program.reps) finishSet(true)
   }, [reps, phase, isTimed, program, finishSet])
 
   // 组内鼓励（计次类）：过半 + 最后冲刺，各触发一次；冷却门控避免打断播报
@@ -299,7 +306,7 @@ export default function FollowAlongPanel({
   return (
     <div className="fa-wrap">
       <div className="fa-stage">
-        <Stage exercise={exercise} playing={modelPlaying} speed={speed} timeRef={timeRef} onDuration={setDuration} />
+        <Stage exercise={exercise} playing={modelPlaying} speed={speed} timeRef={timeRef} />
         <div className="fa-stage-badge">
           {phase === 'set'
             ? `第 ${currentSet} / ${totalSets} 组 · 跟着节奏做`
@@ -372,7 +379,7 @@ export default function FollowAlongPanel({
               <button className="tb-btn" onClick={() => setPaused((p) => !p)}>
                 {paused ? '▶ 继续' : '⏸ 暂停'}
               </button>
-              <button className="tb-btn" onClick={finishSet} title="本组已做完，进入休息">
+              <button className="tb-btn" onClick={() => finishSet()} title="本组已做完，进入休息">
                 ✓ 完成本组
               </button>
               <button className="tb-btn" onClick={quit}>
@@ -426,6 +433,7 @@ export default function FollowAlongPanel({
                   reportedRef.current = false
                   setPhase('idle')
                   setSetIndex(0)
+                  repsRef.current = 0
                   setReps(0)
                 }}
               >
@@ -443,7 +451,7 @@ export default function FollowAlongPanel({
               setSfxEnabled(!sfxOn)
               setSfxOn(!sfxOn)
             }}
-            title="节拍音效：发力点低音、每次完成高音、倒计时提示"
+            title="跟练报数：每完成一次说一个数，以及倒计时提示"
           >
             {sfxOn ? '🔊 音效' : '🔇 音效'}
           </button>
