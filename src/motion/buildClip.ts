@@ -39,8 +39,10 @@ const BODY_BONES = [
 const REST_HIP: [number, number, number] = [0, 103.991, 2.076]
 const FOOT_Y = 0.08
 const TOE_Y = 0
-/** 支撑类动作手掌离地高度（米） */
-const HAND_Y = 0.09
+/** 俯撑时手腕关节离地高度（米），手掌放平时掌面刚好贴地 */
+const HAND_Y = 0.068
+/** 俯撑时脚尖末端关节离地高度（米） */
+const TOE_TIP_Y = 0.006
 
 const cache = new WeakMap<Object3D, Map<string, AnimationClip>>()
 const sampleCache = new WeakMap<Object3D, Map<string, FrameSample[]>>()
@@ -119,10 +121,13 @@ function blendPose(a: MotionPose, b: MotionPose, u: number): MotionPose {
   const rb = b.hipsRot ?? a.hipsRot ?? [0, 0, 0]
   const hipsRotQ = eulerQuat(ra).slerp(eulerQuat(rb), k)
   const he = new Euler().setFromQuaternion(hipsRotQ, 'XYZ')
+  const sa = a.shift ?? [0, 0, 0]
+  const sb = b.shift ?? [0, 0, 0]
   return {
     t: a.t + (b.t - a.t) * u,
     rot,
     hop: (a.hop ?? 0) + ((b.hop ?? 0) - (a.hop ?? 0)) * k,
+    shift: a.shift || b.shift ? (sa.map((v, i) => v + (sb[i] - v) * k) as [number, number, number]) : undefined,
     hips,
     hipsRot: a.hipsRot || b.hipsRot ? [(he.x * 180) / Math.PI, (he.y * 180) / Math.PI, (he.z * 180) / Math.PI] : undefined,
   }
@@ -164,6 +169,7 @@ function applyPose(rig: Rig, motion: MotionDef, pose: MotionPose, handAnchor: Ve
   const left = new Vector3()
   const right = new Vector3()
   const s = rig.scale
+  let support = false
 
   if (motion.plant === 'feet' || motion.plant === 'toes') {
     const lName = motion.plant === 'toes' ? 'mixamorigLeftToeBase' : 'mixamorigLeftFoot'
@@ -195,21 +201,53 @@ function applyPose(rig: Rig, motion: MotionDef, pose: MotionPose, handAnchor: Ve
     worldOf(rig.bones.get('mixamorigLeftHand')!, left)
     worldOf(rig.bones.get('mixamorigRightHand')!, right)
     const mid = left.add(right).multiplyScalar(0.5)
-    if (!handAnchor) {
-      // 支撑类动作（俯卧撑/平板，手在髋下方）：双手钉在地面高度
-      // 引体向上（手在髋上方）：手锚定在第一帧的杠位
-      const hipsW = worldOf(rig.hips, new Vector3())
-      handAnchor =
-        mid.y < hipsW.y ? new Vector3(mid.x, HAND_Y, mid.z) : mid.clone()
-    }
-    rig.hips.position.x += (handAnchor.x - mid.x) / s
-    rig.hips.position.y += (handAnchor.y - mid.y) / s
-    rig.hips.position.z += (handAnchor.z - mid.z) / s
+    // 俯撑（俯卧撑/平板，手在髋下方）：双手钉在地面高度
+    // 引体向上（手在髋上方）：手锚定在第一帧的杠位
+    support = mid.y < worldOf(rig.hips, new Vector3()).y
+    if (!handAnchor) handAnchor = support ? new Vector3(mid.x, HAND_Y, mid.z) : mid.clone()
+    const target = support && pose.hop ? handAnchor.clone().setY(handAnchor.y + pose.hop) : handAnchor
+    rig.hips.position.x += (target.x - mid.x) / s
+    rig.hips.position.y += (target.y - mid.y) / s
+    rig.hips.position.z += (target.z - mid.z) / s
+    if (support) pivotOntoToes(rig, target)
   }
 
-  if (pose.hop) rig.hips.position.y += pose.hop / s
+  if (pose.hop && !support) rig.hips.position.y += pose.hop / s
+  if (pose.shift) {
+    rig.hips.position.x += pose.shift[0] / s
+    rig.hips.position.y += pose.shift[1] / s
+    rig.hips.position.z += pose.shift[2] / s
+  }
   rig.root.updateMatrixWorld(true)
   return handAnchor
+}
+
+/**
+ * 俯撑时绕双手连线（世界 X 轴）转动整个身体，让撑地脚的脚尖落到地面。
+ * 撑地脚取把身体抬得最高的那只（另一只就不会穿地），登山跑收起的那条腿保持悬空。
+ */
+function pivotOntoToes(rig: Rig, pivot: Vector3) {
+  rig.root.updateMatrixWorld(true)
+  const want = TOE_TIP_Y - pivot.y
+  let theta = -Infinity
+  for (const name of ['mixamorigLeftToe_End', 'mixamorigRightToe_End']) {
+    const toe = worldOf(rig.bones.get(name)!, new Vector3()).sub(pivot)
+    const radius = Math.hypot(toe.y, toe.z)
+    if (radius <= Math.abs(want)) continue
+    const phi = Math.atan2(toe.y, toe.z)
+    const s = Math.asin(want / radius)
+    const goal = Math.cos(phi) < 0 ? Math.PI - s : s
+    theta = Math.max(theta, Math.atan2(Math.sin(phi - goal), Math.cos(phi - goal)))
+  }
+  if (!Number.isFinite(theta)) return
+
+  const turn = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), theta)
+  const parent = rig.hips.parent!
+  const pos = worldOf(rig.hips, new Vector3()).sub(pivot).applyQuaternion(turn).add(pivot)
+  const quat = rig.hips.getWorldQuaternion(new Quaternion()).premultiply(turn)
+  rig.hips.position.copy(parent.worldToLocal(pos))
+  rig.hips.quaternion.copy(parent.getWorldQuaternion(new Quaternion()).invert().multiply(quat))
+  rig.root.updateMatrixWorld(true)
 }
 
 export interface FrameSample {

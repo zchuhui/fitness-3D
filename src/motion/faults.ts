@@ -2,7 +2,7 @@ import type { ErrorVariant } from '../types'
 import { both, MOTIONS, type EulerDeg, type MotionDef, type MotionPose, type MotionSegment } from './motions'
 
 type Delta = Record<string, EulerDeg>
-type When = 'mid' | 'end' | 'rest'
+type When = 'mid' | 'end' | 'rest' | 'all'
 
 interface Spec {
   id: string
@@ -13,11 +13,15 @@ interface Spec {
   mirror?: boolean
   hop?: number
   hips?: [number, number, number]
+  /** 加到骨盆朝向上（度）。双脚着地的仰卧动作没有 hips，靠它把骨盆顶起或前倾 */
+  hipsRot?: EulerDeg
   /** 覆盖整段节奏，用来表现忽快忽慢、没有停顿 */
   segments?: MotionSegment[]
   /** 交替快慢，并取消停顿 */
   rush?: boolean
   edit?: (pose: MotionPose, index: number, count: number) => void
+  /** 去掉这些下标的姿势（错误轨迹不经过标准动作的中间点） */
+  drop?: number[]
 }
 
 function cloneMotion(baseId: string): MotionDef {
@@ -31,6 +35,7 @@ function cloneMotion(baseId: string): MotionDef {
       t: pose.t,
       rot: Object.fromEntries(Object.entries(pose.rot).map(([name, euler]) => [name, [...euler] as EulerDeg])),
       hop: pose.hop,
+      shift: pose.shift ? ([...pose.shift] as [number, number, number]) : undefined,
       hips: pose.hips ? ([...pose.hips] as [number, number, number]) : undefined,
       hipsRot: pose.hipsRot ? ([...pose.hipsRot] as EulerDeg) : undefined,
     })),
@@ -48,6 +53,7 @@ function addRot(rot: Record<string, EulerDeg>, delta: Delta, mirror: boolean) {
 }
 
 function hits(when: When, index: number, count: number) {
+  if (when === 'all') return true
   if (when === 'rest') return index > 0
   if (when === 'end') return index >= Math.max(1, count - 2)
   return index > 0 && index < count - 1
@@ -65,7 +71,15 @@ function buildSpec(spec: Spec): MotionDef {
     if (spec.hips && pose.hips) {
       pose.hips = [pose.hips[0] + spec.hips[0], pose.hips[1] + spec.hips[1], pose.hips[2] + spec.hips[2]]
     }
+    if (spec.hipsRot && pose.hipsRot) {
+      pose.hipsRot = [pose.hipsRot[0] + spec.hipsRot[0], pose.hipsRot[1] + spec.hipsRot[1], pose.hipsRot[2] + spec.hipsRot[2]]
+    }
     spec.edit?.(pose, i, count)
+  }
+  if (spec.drop) {
+    const keep = (_: unknown, i: number) => !spec.drop!.includes(i)
+    motion.segments = motion.segments?.filter((_, i) => keep(_, i + 1))
+    motion.poses = motion.poses.filter(keep)
   }
   if (spec.segments) motion.segments = spec.segments
   if (spec.rush) {
@@ -76,6 +90,10 @@ function buildSpec(spec: Spec): MotionDef {
   }
   return motion
 }
+
+/** 平板塌腰后骨盆倾角与平移的修正，让双手仍撑在原处 */
+const BURPEE_SAG_TILT = -13.3
+const BURPEE_SAG_SHIFT_Z = -0.018
 
 const SPECS: Spec[] = [
   { id: 'squat-x-heels', base: 'squat', delta: { LeftFoot: [40, 0, 0], Spine: [8, 0, 0] } },
@@ -88,21 +106,42 @@ const SPECS: Spec[] = [
   { id: 'ohs-x-loose', base: 'overhead-squat', delta: { Spine: [16, 0, 0], Spine1: [12, 0, 0], LeftUpLeg: [8, 0, 0] } },
   { id: 'ohs-x-shallow', base: 'overhead-squat', delta: { LeftUpLeg: [36, 0, 0], LeftLeg: [-42, 0, 0] } },
 
-  { id: 'push-up-x-flare', base: 'push-up', delta: { LeftArm: [0, 26, -20] } },
-  { id: 'push-up-x-half', base: 'push-up', delta: { LeftForeArm: [0, 0, 48] } },
-  { id: 'push-up-x-neck', base: 'push-up', delta: { Neck: [22, 0, 0], Head: [16, 0, 0] } },
+  // 底部上臂外展到与躯干约 90°（T 字），手仍在原位
+  { id: 'push-up-x-flare', base: 'push-up', delta: { LeftArm: [13, -11, 58], LeftForeArm: [0, 2, 0], LeftHand: [-61, 24, 58] } },
+  // 只下到肘约 77°，胸离地约 24 cm
+  { id: 'push-up-x-half', base: 'push-up', delta: { LeftArm: [-33, -18, -2], LeftForeArm: [0, 36, 0], LeftHand: [3, 0, -12] } },
+  {
+    id: 'push-up-x-neck',
+    base: 'push-up',
+    when: 'all',
+    // 底部胸口离地只有几厘米，低头幅度再大头就穿地了
+    edit: (pose) => {
+      const bottom = pose.rot.LeftForeArm[1] < -90
+      pose.rot = addRot(pose.rot, bottom ? { Neck: [12, 0, 0], Head: [4, 0, 0] } : { Neck: [22, 0, 0], Head: [16, 0, 0] }, true)
+    },
+  },
 
-  { id: 'jpu-x-sag', base: 'jump-push-up', delta: { Spine: [18, 0, 0], Spine1: [10, 0, 0] } },
-  { id: 'jpu-x-lock', base: 'jump-push-up', when: 'end', delta: { LeftForeArm: [0, 0, 20], LeftLeg: [-6, 0, 0] } },
+  { id: 'jpu-x-sag', base: 'jump-push-up', when: 'all', delta: { LeftUpLeg: [14, 0, 0], Spine: [-3, 0, 0], Spine1: [11, 0, 0] } },
+  {
+    id: 'jpu-x-lock',
+    base: 'jump-push-up',
+    when: 'end',
+    edit: (pose, index, count) => {
+      if (index !== count - 2) return
+      pose.rot = { ...pose.rot, ...both({ LeftArm: [-72, -35, -80], LeftForeArm: [0, 0, 0], LeftHand: [45, -6, 85] }) }
+    },
+  },
   { id: 'jpu-x-whip', base: 'jump-push-up', delta: { Spine: [24, 0, 0], Spine1: [12, 0, 0] } },
   { id: 'jpu-x-wrist', base: 'jump-push-up', delta: { LeftHand: [36, 0, 18] } },
 
   { id: 'deadlift-x-far', base: 'deadlift', delta: { LeftArm: [26, 18, 12], LeftForeArm: [0, -24, 0] } },
   { id: 'deadlift-x-hips', base: 'deadlift', delta: { LeftLeg: [-34, 0, 0], Spine: [12, 0, 0], LeftUpLeg: [-10, 0, 0] } },
 
-  { id: 'plank-x-pike', base: 'plank', delta: { Spine: [-24, 0, 0], Spine1: [-10, 0, 0] } },
-  { id: 'plank-x-breath', base: 'plank', delta: { LeftShoulder: [12, 0, -14], Neck: [10, 0, 0] } },
-  { id: 'plank-x-elbow', base: 'plank', delta: { LeftArm: [24, -12, 0] } },
+  // 髋部高出肩踝连线约 16 cm，前臂仍贴地
+  { id: 'plank-x-pike', base: 'plank', when: 'all', delta: { Spine: [18, 0, 0], LeftUpLeg: [-18, 0, 0], LeftArm: [-25, 2, -2], LeftHand: [2, -2, 0] } },
+  { id: 'plank-x-breath', base: 'plank', when: 'all', delta: { LeftShoulder: [12, 0, -14], Neck: [10, 0, 0] } },
+  // 肘撑到肩前约 15 cm
+  { id: 'plank-x-elbow', base: 'plank', when: 'all', delta: { LeftArm: [-36, -3, -1], LeftForeArm: [0, 34, 0], LeftHand: [-5, 0, 1] } },
 
   { id: 'lunge-x-valgus', base: 'lunge', delta: { LeftUpLeg: [0, -18, -14] } },
   {
@@ -125,7 +164,8 @@ const SPECS: Spec[] = [
 
   { id: 'sit-up-x-neck', base: 'sit-up', delta: { Neck: [28, 0, 0], Head: [22, 0, 0] } },
   { id: 'sit-up-x-yank', base: 'sit-up', rush: true },
-  { id: 'sit-up-x-arch', base: 'sit-up', delta: { Spine: [12, 0, 0] }, hips: [0, 6, 0] },
+  // 骨盆前倾、腰椎伸展，下背拱离地面；大腿和上背保持原位
+  { id: 'sit-up-x-arch', base: 'sit-up', when: 'all', delta: { Spine: [-20, 0, 0], Spine1: [-12, 0, 0], Neck: [12, 0, 0], LeftUpLeg: [-20, 0, 0] }, hipsRot: [20, 0, 0] },
   { id: 'sit-up-x-slam', base: 'sit-up', rush: true },
 
   { id: 'jj-x-lock', base: 'jumping-jack', when: 'rest', delta: { LeftLeg: [-10, 0, 0] } },
@@ -140,7 +180,12 @@ const SPECS: Spec[] = [
 
   { id: 'bench-x-wrist', base: 'bench-press', delta: { LeftHand: [32, -28, 0] } },
   { id: 'bench-x-high', base: 'bench-press', delta: { LeftForeArm: [0, -70, 0] } },
-  { id: 'bench-x-bridge', base: 'bench-press', delta: { Spine: [-14, 0, 0] }, hips: [0, 5, 0] },
+  {
+    id: 'bench-x-bridge',
+    base: 'bench-press',
+    delta: { LeftUpLeg: [14, 0, 0], LeftLeg: [-5, 0, 0], LeftFoot: [-2, 0, 0], Neck: [12, 0, 0] },
+    hipsRot: [-7, 0, 0],
+  },
 
   { id: 'pull-up-x-kip', base: 'pull-up', delta: { Spine: [20, 0, 0], LeftUpLeg: [-24, 0, 0] } },
   { id: 'pull-up-x-half', base: 'pull-up', delta: { LeftForeArm: [0, 40, 0] } },
@@ -148,14 +193,60 @@ const SPECS: Spec[] = [
   { id: 'pull-up-x-wide', base: 'pull-up', delta: { LeftArm: [0, 26, -18] } },
 
   { id: 'ohp-x-lean', base: 'overhead-press', when: 'rest', delta: { Spine: [-16, 0, 0], Spine1: [-8, 0, 0] } },
-  { id: 'ohp-x-forward', base: 'overhead-press', delta: { LeftArm: [18, -26, 0] } },
-  { id: 'ohp-x-grip', base: 'overhead-press', delta: { LeftArm: [0, 20, 14] } },
+  // 肩推姿势：0 起始、1 过下巴、2 过额头、3/4 顶端、5 过额头、6 过下巴、7 起始
+  {
+    id: 'ohp-x-forward',
+    base: 'overhead-press',
+    drop: [1, 2, 5, 6],
+    edit: (pose, i) => {
+      if (i === 3 || i === 4) Object.assign(pose.rot, both({ LeftArm: [154, 82, -35], LeftForeArm: [0, -7, 0], LeftHand: [168, 0, 20] }))
+    },
+  },
+  {
+    id: 'ohp-x-grip',
+    base: 'overhead-press',
+    when: 'all',
+    drop: [1, 2, 5, 6],
+    edit: (pose, i, count) => {
+      const top = i > 0 && i < count - 1
+      Object.assign(
+        pose.rot,
+        top
+          ? both({ LeftArm: [177, 14, -58], LeftForeArm: [0, -7, 0], LeftHand: [102, 1, 0] })
+          : both({ LeftArm: [-59, 56, -47], LeftForeArm: [0, -115, 0], LeftHand: [-96, 80, 120] }),
+      )
+    },
+  },
   { id: 'ohp-x-shrug', base: 'overhead-press', when: 'end', delta: { LeftShoulder: [16, 0, -18] } },
 
-  { id: 'burpee-x-sag', base: 'burpee', delta: { Spine: [16, 0, 0], Spine1: [10, 0, 0] } },
-  { id: 'burpee-x-lock', base: 'burpee', when: 'end', delta: { LeftLeg: [-10, 0, 0] } },
+  // 波比跳姿势：0 站、1 蹲撑、2-3 后跳、4/5 平板、6-7 收腿、8 蹲撑、9 蹬伸、10 腾空、11 触地、12 缓冲、13 站
+  {
+    id: 'burpee-x-sag',
+    base: 'burpee',
+    edit: (pose, i) => {
+      if (i !== 4 && i !== 5) return
+      pose.rot = addRot(pose.rot, { LeftUpLeg: [18, 0, 0], Spine: [-2, 0, 0], Spine1: [14, 0, 0] }, true)
+      pose.hipsRot = [pose.hipsRot![0] + BURPEE_SAG_TILT, 0, 0]
+      pose.shift = [0, 0, pose.shift![2] + BURPEE_SAG_SHIFT_Z]
+    },
+  },
+  {
+    id: 'burpee-x-lock',
+    base: 'burpee',
+    edit: (pose, i) => {
+      if (i === 12) Object.assign(pose.rot, both({ LeftUpLeg: [-3, 0, 3], LeftLeg: [3, 0, 0], LeftFoot: [0, 0, 0], Spine: [4, 0, 0], Spine1: [0, 0, 0] }))
+    },
+  },
   { id: 'burpee-x-rush', base: 'burpee', rush: true },
-  { id: 'burpee-x-sloppy', base: 'burpee', delta: { Spine: [12, 0, 0], LeftUpLeg: [18, 0, 0] }, hop: 0.05 },
+  {
+    id: 'burpee-x-sloppy',
+    base: 'burpee',
+    edit: (pose, i) => {
+      if (i !== 10) return
+      pose.rot = addRot(pose.rot, { LeftUpLeg: [-55, 0, 6], LeftLeg: [85, 0, 0], Spine: [-14, 0, 0], Spine1: [-8, 0, 0], Neck: [-14, 0, 0] }, true)
+      pose.hop = 0.34
+    },
+  },
 
   { id: 'rdl-x-squat', base: 'romanian-deadlift', delta: { LeftLeg: [42, 0, 0], LeftUpLeg: [-16, 0, 0] } },
   { id: 'rdl-x-round', base: 'romanian-deadlift', delta: { Spine: [18, 0, 0], Spine1: [12, 0, 0], Neck: [10, 0, 0], Head: [8, 0, 0] } },
@@ -196,10 +287,36 @@ const SPECS: Spec[] = [
   { id: 'calf-x-bend', base: 'calf-raise', delta: { LeftLeg: [30, 0, 0] } },
   { id: 'calf-x-bounce', base: 'calf-raise', rush: true },
 
-  { id: 'js-x-valgus', base: 'jump-squat', delta: { LeftUpLeg: [0, -24, -16], LeftLeg: [0, -8, -6] } },
-  { id: 'js-x-shallow', base: 'jump-squat', delta: { LeftUpLeg: [32, 0, 0], LeftLeg: [-40, 0, 0] }, hop: 0.04 },
-  { id: 'js-x-lock', base: 'jump-squat', when: 'end', delta: { LeftLeg: [-10, 0, 0] } },
-  { id: 'js-x-round', base: 'jump-squat', delta: { Spine: [16, 0, 0], Spine1: [8, 0, 0], Neck: [8, 0, 0] } },
+  // 跳跃深蹲姿势：0 站、1 深蹲、2 蹬伸、3 腾空、4 触地、5 缓冲、6 站
+  {
+    id: 'js-x-valgus',
+    base: 'jump-squat',
+    edit: (pose, i) => {
+      if (i === 4 || i === 5) pose.rot = addRot(pose.rot, { LeftUpLeg: [0, -24, -16], LeftLeg: [0, -8, -6] }, true)
+    },
+  },
+  {
+    id: 'js-x-shallow',
+    base: 'jump-squat',
+    edit: (pose, i) => {
+      if (i === 1) pose.rot = addRot(pose.rot, { LeftUpLeg: [34, 0, 0], LeftLeg: [-44, 0, 0], LeftFoot: [10, 0, 0], Spine: [-10, 0, 0] }, true)
+      if (i === 3) pose.hop = 0.14
+    },
+  },
+  {
+    id: 'js-x-lock',
+    base: 'jump-squat',
+    edit: (pose, i) => {
+      if (i === 5) Object.assign(pose.rot, both({ LeftUpLeg: [-3, 0, 3], LeftLeg: [3, 0, 0], LeftFoot: [0, 0, 0], Spine: [4, 0, 0], Spine1: [0, 0, 0] }))
+    },
+  },
+  {
+    id: 'js-x-round',
+    base: 'jump-squat',
+    edit: (pose, i) => {
+      if (i === 1 || i === 2) pose.rot = addRot(pose.rot, { Spine: [16, 0, 0], Spine1: [10, 0, 0], Neck: [8, 0, 0] }, true)
+    },
+  },
 
   { id: 'hk-x-lean', base: 'high-knees', when: 'rest', delta: { Spine: [-14, 0, 0] } },
   { id: 'hk-x-stomp', base: 'high-knees', when: 'rest', delta: { LeftFoot: [16, 0, 0], LeftLeg: [-8, 0, 0] } },
@@ -221,7 +338,14 @@ const SPECS: Spec[] = [
   { id: 'crunch-x-yank', base: 'crunch', rush: true },
   { id: 'crunch-x-breath', base: 'crunch', delta: { LeftShoulder: [10, 0, -12], Neck: [6, 0, 0] } },
 
-  { id: 'llr-x-arch', base: 'lying-leg-raise', delta: { Spine: [14, 0, 0], Spine1: [8, 0, 0] }, hips: [0, 4, 0] },
+  {
+    id: 'llr-x-arch',
+    base: 'lying-leg-raise',
+    when: 'all',
+    delta: { Spine: [-16, 0, 0], LeftUpLeg: [-14, 0, 0] },
+    hipsRot: [14, 0, 0],
+    hips: [0, 2, 0],
+  },
   { id: 'llr-x-swing', base: 'lying-leg-raise', delta: { LeftUpLeg: [-18, 0, 0] }, rush: true },
   { id: 'llr-x-drop', base: 'lying-leg-raise', rush: true, delta: { LeftLeg: [10, 0, 0] } },
   { id: 'llr-x-breath', base: 'lying-leg-raise', delta: { LeftShoulder: [10, 0, -10], Neck: [6, 0, 0] } },
@@ -229,22 +353,33 @@ const SPECS: Spec[] = [
   {
     id: 'rt-x-arms',
     base: 'russian-twist',
-    when: 'rest',
-    edit: (pose, index) => {
-      if (index === 0) return
-      const swing = index % 2 === 0 ? 48 : -48
+    when: 'all',
+    // 胸椎不转，只有双臂绕身体中轴甩向一侧约 35°
+    edit: (pose) => {
+      const toLeft = pose.rot.Spine[1] > 0
+      const unturned = (name: string): EulerDeg => [pose.rot[name][0], 0, 0]
       pose.rot = {
         ...pose.rot,
-        Spine: [42, 0, 0],
-        Spine1: [12, 0, 0],
-        LeftArm: [-20, swing, -50],
-        RightArm: [-20, swing, 50],
+        Spine: unturned('Spine'),
+        Spine1: unturned('Spine1'),
+        Spine2: unturned('Spine2'),
+        LeftArm: toLeft ? [-59, 22, -78] : [-57, -18, -137],
+        RightArm: toLeft ? [-57, 18, 137] : [-59, -22, 78],
       }
     },
   },
-  { id: 'rt-x-round', base: 'russian-twist', when: 'rest', delta: { Spine: [16, 0, 0], Spine1: [12, 0, 0] } },
+  { id: 'rt-x-round', base: 'russian-twist', when: 'all', delta: { Spine: [16, 0, 0], Spine1: [12, 0, 0] } },
   { id: 'rt-x-fast', base: 'russian-twist', rush: true },
-  { id: 'rt-x-neck', base: 'russian-twist', when: 'rest', delta: { Neck: [20, 0, 0], Head: [16, 0, 0] } },
+  {
+    id: 'rt-x-neck',
+    base: 'russian-twist',
+    when: 'all',
+    // 头比胸转得更多，用脖子带动
+    edit: (pose) => {
+      const side = Math.sign(pose.rot.Spine[1])
+      pose.rot = { ...pose.rot, Neck: [pose.rot.Neck?.[0] ?? 0, 28 * side, 0], Head: [0, 14 * side, 0] }
+    },
+  },
 ]
 
 export const FAULT_MOTIONS: Record<string, MotionDef> = Object.fromEntries(SPECS.map((spec) => [spec.id, buildSpec(spec)]))
@@ -356,7 +491,7 @@ export const exerciseFaults: Record<string, { base: string; errors: ErrorVariant
   burpee: {
     base: 'burpee',
     errors: errors(
-      ['下蹲时塌腰', '落地时膝盖锁死无缓冲', '起跳前没有蹲稳', '为追求高度牺牲姿势'],
+      ['平板撑时塌腰', '落地时膝盖锁死无缓冲', '节奏忽快忽慢、动作没做到位', '为追求高度牺牲姿势'],
       ['burpee-x-sag', 'burpee-x-lock', 'burpee-x-rush', 'burpee-x-sloppy'],
     ),
   },
